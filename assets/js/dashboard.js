@@ -54,6 +54,8 @@ const Dashboard = (() => {
 
     // 計算核心指標
     const stats = calcStats(sd, todayMetrics, monthPrefix, today);
+    const visitStats = calcVisitStats(sd, today);
+    const upcomingVisits = calcUpcomingVisits(sd, today);
 
     // 今日其他業務復盤（自己的除外，供團隊互看）
     const othersReflection = data.dailyMetrics
@@ -87,6 +89,11 @@ const Dashboard = (() => {
           <button class="btn-primary" id="btnGuideProfile">👤 設定身份</button>
         </div>
       ` : ''}
+
+      <!-- ============= 新增：客戶拜訪紀錄流程 ============= -->
+      ${renderOnboarding(sd)}
+      ${renderVisitHeroCard(sd, today, visitStats)}
+      ${renderUpcomingVisits(sd, today, upcomingVisits)}
 
       <h3 style="font-size:14px;margin-bottom:12px;color:var(--text-secondary);">🔥 活動量指標 <span style="font-weight:400;color:var(--text-muted);">${dashMode === 'mine' ? '（只看我自己）' : '（全團隊合計）'}</span></h3>
       <div class="stats-grid">
@@ -284,7 +291,204 @@ const Dashboard = (() => {
     const maxAmount = Math.max(...stageTotals.map(s => s.amount), 1);
     stageTotals.forEach(s => { s.pct = Math.round((s.amount / maxAmount) * 100); });
 
-    return { topDeals, todayTasks, recentActivities, talkRate, closeRate, winRate, advanceRate, stageTotals };
+    return { topDeals, todayTasks, recentActivities, talkRate, closeRate, winRate, advanceRate, stageTotals, visitStats };
+  };
+
+  // ===== 拜訪紀錄統計（今日/昨日/本週/本月/應拜訪）=====
+  const calcVisitStats = (data, today) => {
+    const todayD = new Date(today);
+    const yesterdayD = new Date(todayD); yesterdayD.setDate(yesterdayD.getDate() - 1);
+    const yesterdayStr = localDateStr(1);
+    const weekAgoD = new Date(todayD); weekAgoD.setDate(weekAgoD.getDate() - 7);
+    const monthPrefix = today.slice(0, 7);
+
+    // 「拜訪」定義：互動方式 = 當面拜訪 或 視訊會議（業務外出到客戶現場）
+    const isVisitAct = (a) => a.method === '當面拜訪' || a.type === '拜訪';
+
+    // 取「每日去過的客戶數」：按日期分組去重 companyId
+    const visitedCompaniesByDate = new Map();
+    data.activities.forEach(a => {
+      if (!isVisitAct(a)) return;
+      const deal = data.deals.find(d => d.id === a.dealId);
+      const companyId = deal?.companyId;
+      if (!companyId) return;
+      if (!visitedCompaniesByDate.has(a.date)) visitedCompaniesByDate.set(a.date, new Set());
+      visitedCompaniesByDate.get(a.date).add(companyId);
+    });
+
+    const todayVisited = visitedCompaniesByDate.get(today)?.size || 0;
+    const yesterdayVisited = visitedCompaniesByDate.get(yesterdayStr)?.size || 0;
+    const weekVisited = [...visitedCompaniesByDate.entries()]
+      .filter(([d]) => new Date(d) >= weekAgoD)
+      .reduce((s, [, set]) => s + set.size, 0);
+    const monthVisited = [...visitedCompaniesByDate.entries()]
+      .filter(([d]) => d.startsWith(monthPrefix))
+      .reduce((s, [, set]) => s + set.size, 0);
+
+    // 今日拜訪次數（activities）
+    const todayVisitCount = data.activities.filter(a => a.date === today && isVisitAct(a)).length;
+
+    // 應拜訪家數 = 客戶總數 − 今日已拜訪（引導業務把今日客戶都走一遍）
+    const totalCompanies = data.companies.length;
+    const pendingVisit = Math.max(0, totalCompanies - todayVisited);
+
+    return { todayVisited, yesterdayVisited, weekVisited, monthVisited, todayVisitCount, pendingVisit, totalCompanies };
+  };
+
+  // ===== 應拜訪客戶清單（按上次拜訪距今排序：紅 > 黃 > 綠 > 灰）=====
+  const stageRank = (key) => Store.PIPELINE_STAGES.findIndex(s => s.key === key);
+  const calcUpcomingVisits = (data, today) => {
+    const todayD = new Date(today);
+    return data.companies.map(co => {
+      const deals = data.deals.filter(d => d.companyId === co.id);
+      const dealIds = deals.map(d => d.id);
+      const contacts = data.contacts.filter(c => c.companyId === co.id);
+      const acts = data.activities
+        .filter(a => dealIds.includes(a.dealId))
+        .sort((a, b) => b.date.localeCompare(a.date));
+      const lastDate = acts[0]?.date || null;
+      const daysSince = lastDate ? Math.max(0, Math.floor((todayD - new Date(lastDate)) / 86400000)) : null;
+
+      const topDeal = deals
+        .filter(d => d.stage !== 'lost')
+        .sort((a, b) => stageRank(b.stage) - stageRank(a.stage))[0];
+
+      const lamp = daysSince === null ? 'gray' : daysSince > 14 ? 'red' : daysSince >= 7 ? 'yellow' : 'green';
+
+      return { company: co, contacts, topDeal, lastDate, daysSince, lamp, contactCount: contacts.length };
+    })
+    .sort((a, b) => {
+      const order = { red: 0, yellow: 1, gray: 2, green: 3 };
+      const o = order[a.lamp] - order[b.lamp];
+      return o !== 0 ? o : ((b.daysSince ?? 9999) - (a.daysSince ?? 9999));
+    });
+  };
+
+  // ===== 📞 拜訪戰報 Hero Card（首頁最上方亮點區塊）=====
+  const renderVisitHeroCard = (data, today, stats) => {
+    const me = Store.me();
+    if (data.companies.length === 0) return '';
+    return `
+      <div class="visit-hero">
+        <div class="visit-hero-head">
+          <div>
+            <div class="visit-hero-title">📞 客戶拜訪紀錄 · 今日戰報</div>
+            <div class="visit-hero-sub">建議每個客戶每 7–14 天拜訪一次 — 久沒拜訪的客戶容易流失</div>
+          </div>
+          <button class="btn-primary" id="btnQuickVisit" ${data.deals.length === 0 ? 'disabled title="請先建立商機"' : ''}>📞 記錄今日拜訪</button>
+        </div>
+        <div class="visit-hero-grid">
+          <div class="vh-cell"><div class="vh-label">今日已拜訪</div><div class="vh-val">${stats.todayVisited}<span class="vh-unit">/ ${stats.totalCompanies} 家</span></div></div>
+          <div class="vh-cell"><div class="vh-label">昨日已拜訪</div><div class="vh-val">${stats.yesterdayVisited}<span class="vh-unit">家</span></div></div>
+          <div class="vh-cell"><div class="vh-label">本週已拜訪</div><div class="vh-val">${stats.weekVisited}<span class="vh-unit">家</span></div></div>
+          <div class="vh-cell"><div class="vh-label">本月已拜訪</div><div class="vh-val">${stats.monthVisited}<span class="vh-unit">家</span></div></div>
+          <div class="vh-cell ${stats.pendingVisit > 0 ? 'vh-warn' : 'vh-ok'}">
+            <div class="vh-label">今日待拜訪</div>
+            <div class="vh-val">${stats.pendingVisit}<span class="vh-unit">家</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  // ===== 🚦 應拜訪客戶清單 =====
+  const lampEmoji = { red: '🔴', yellow: '🟡', green: '🟢', gray: '⚪' };
+  const lampLabel = { red: '>14 天未拜訪', yellow: '7–14 天', green: '7 天內', gray: '從未拜訪' };
+  const renderUpcomingVisits = (data, today, list) => {
+    if (data.companies.length === 0) return '';
+    const top = list.slice(0, 8);
+    return `
+      <div class="card visit-list-card mt-3">
+        <div class="card-title">
+          🚦 應拜訪客戶清單 <span style="font-size:11px;color:var(--text-muted);font-weight:400;">紅燈 >14 天 / 黃燈 7–14 天 / 綠燈 <7 天 / 灰 = 從未拜訪</span>
+        </div>
+        ${top.length === 0 ? '<div class="empty" style="padding:24px;"><div class="empty-icon">🏢</div><div class="empty-text">尚無客戶資料</div></div>' : ''}
+        <div class="visit-list">
+          ${top.map(item => {
+            const stageInfo = item.topDeal ? Store.STAGE_MAP[item.topDeal.stage] : null;
+            return `
+              <div class="visit-row lamp-${item.lamp}">
+                <div class="visit-lamp" title="${lampLabel[item.lamp]}">${lampEmoji[item.lamp]}</div>
+                <div class="visit-info">
+                  <div class="visit-info-title">
+                    ${escapeHtml(item.company.name)}
+                    ${stageInfo ? `<span class="stage-badge stage-${item.topDeal.stage}" style="margin-left:6px;">${stageInfo.name}</span>` : '<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">無商機</span>'}
+                    ${item.contactCount > 0 ? `<span class="owner-tag" style="margin-left:6px;">${item.contactCount} 位聯絡人</span>` : ''}
+                  </div>
+                  <div class="visit-info-meta">
+                    👤 ${escapeHtml(item.company.owner || '未指派')}
+                    · 上次互動：${item.lastDate ? `${item.lastDate}（${item.daysSince === 0 ? '今天' : item.daysSince + ' 天前'}）` : '從未拜訪'}
+                    ${item.topDeal ? ` · 推進金額 <b style="color:var(--success);">NT$ ${(item.topDeal.amount || 0).toLocaleString()}</b>` : ''}
+                  </div>
+                </div>
+                <button class="visit-action" data-action="record-visit" data-deal-id="${item.topDeal?.id || ''}" data-company-id="${item.company.id}" ${!item.topDeal ? 'disabled title="需先建立商機"' : ''}>
+                  📞 記錄拜訪
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  // ===== 🎬 客戶拜訪 4 步流程引導（資料很少時顯示）=====
+  const renderOnboarding = (data) => {
+    if (data.companies.length >= 3) return ''; // 已上手，不打擾
+    const me = Store.me();
+    const steps = [
+      {
+        no: 1, icon: '🏢', title: '建立第一個客戶',
+        done: data.companies.length > 0,
+        action: () => Companies.openForm()
+      },
+      {
+        no: 2, icon: '👤', title: '新增該客戶的聯絡人',
+        done: data.companies.length > 0 && data.contacts.length > 0,
+        action: () => Contacts.openForm()
+      },
+      {
+        no: 3, icon: '💰', title: '為客戶建立商機（金額 + 階段）',
+        done: data.deals.length > 0,
+        action: () => Deals.openForm()
+      },
+      {
+        no: 4, icon: '📞', title: '記錄第一次拜訪（互動紀錄）',
+        done: data.activities.some(a => a.method === '當面拜訪' || a.type === '拜訪'),
+        action: () => Activities.openForm(null, null, { type: '拜訪', method: '當面拜訪', owner: me || '' })
+      }
+    ];
+    const doneCount = steps.filter(s => s.done).length;
+    const pct = Math.round((doneCount / steps.length) * 100);
+    return `
+      <div class="onboard-card">
+        <div class="onboard-head">
+          <div>
+            <div class="onboard-title">🎬 客戶拜訪紀錄 4 步流程</div>
+            <div class="onboard-sub">完成 4 步就能正式啟用拜訪戰報，業務每天到首頁依此流程執行即可</div>
+          </div>
+          <div class="onboard-progress">
+            <div class="onboard-progress-text">${doneCount}/${steps.length} 已完成（${pct}%）</div>
+            <div class="onboard-progress-bar"><span style="width:${pct}%;"></span></div>
+          </div>
+        </div>
+        <div class="onboard-steps">
+          ${steps.map(s => `
+            <div class="onboard-step ${s.done ? 'done' : ''}">
+              <div class="onboard-step-no">${s.done ? '✓' : s.no}</div>
+              <div class="onboard-step-body">
+                <div class="onboard-step-icon">${s.icon}</div>
+                <div class="onboard-step-text">
+                  <div class="onboard-step-title">${s.title}</div>
+                  <div class="onboard-step-sub">${s.done ? '已完成 — 繼續保持' : '點右側按鈕開始'}</div>
+                </div>
+              </div>
+              ${s.done ? '<span class="onboard-step-check">✅</span>' : `<button class="btn-secondary onboard-go" data-step="${s.no}">點此執行 →</button>`}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
   };
 
   const renderActivityCard = (label, current, target, unit, variant, isMin = false) => {
@@ -337,6 +541,38 @@ const Dashboard = (() => {
     });
     document.querySelectorAll('.list-item[data-deal-id]').forEach(el => {
       el.addEventListener('click', () => Deals.openDetail(el.dataset.dealId));
+    });
+
+    // 一鍵記錄今日拜訪
+    document.getElementById('btnQuickVisit')?.addEventListener('click', () => {
+      Activities.openForm(null, null, { type: '拜訪', method: '當面拜訪', owner: Store.me() || '' });
+    });
+
+    // 應拜訪清單的「記錄拜訪」按鈕
+    document.querySelectorAll('.visit-action[data-action="record-visit"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dealId = btn.dataset.dealId;
+        if (!dealId) {
+          App.toast('此客戶尚無商機，請先建立商機', 'warning');
+          Deals.openForm();
+          return;
+        }
+        Activities.openForm(null, dealId, { type: '拜訪', method: '當面拜訪', owner: Store.me() || '' });
+      });
+    });
+
+    // 4 步引導按鈕
+    document.querySelectorAll('.onboard-go').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const step = btn.dataset.step;
+        const me = Store.me();
+        if (step === '1') Companies.openForm();
+        else if (step === '2') Contacts.openForm();
+        else if (step === '3') Deals.openForm();
+        else if (step === '4') Activities.openForm(null, null, { type: '拜訪', method: '當面拜訪', owner: me || '' });
+      });
     });
   };
 

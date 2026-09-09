@@ -124,22 +124,35 @@ const Activities = (() => {
     document.getElementById('filterTo').addEventListener('change', apply);
   };
 
-  const openForm = (activityId = null, dealId = null) => {
+  const openForm = (activityId = null, dealId = null, preset = {}) => {
     const data = Store.load();
     const act = activityId ? data.activities.find(a => a.id === activityId) : null;
     const isEdit = !!act;
     const preselectedDeal = dealId || act?.dealId || '';
+    const presetDate = preset.date || '';
+    const presetType = preset.type || '';
+    const presetMethod = preset.method || '';
+    const presetOwner = preset.owner || act?.owner || Store.me();
+
+    // 本地日期（避免 UTC 跳日）；present/edit 預設今天
+    const todayStr = (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
 
     if (data.deals.length === 0 && !isEdit) {
       App.toast('請先建立商機才能記錄互動', 'warning');
       return;
     }
 
+    const typeOpts = ['首次接觸', '初步溝通', '需求確認', '方案演示', '報價溝通', '議價', '簽約', '售後服務', '拜訪', '後續跟進', '其他'];
+    const methodOpts = ['當面拜訪', '電話', '視訊會議', 'Email', 'Line', 'WeChat', '其他'];
+
     const html = `
       <form id="activityForm" class="form-grid">
         <div class="form-field">
           <label>互動日期 *</label>
-          <input type="date" name="date" required value="${act?.date || new Date().toISOString().slice(0,10)}">
+          <input type="date" name="date" required value="${act?.date || presetDate || todayStr}">
         </div>
         <div class="form-field">
           <label>關聯商機 *</label>
@@ -161,19 +174,19 @@ const Activities = (() => {
         <div class="form-field">
           <label>互動方式</label>
           <select name="method">
-            ${['當面拜訪', '電話', '視訊會議', 'Email', 'Line', 'WeChat', '其他'].map(m => `<option ${act?.method === m ? 'selected' : ''}>${m}</option>`).join('')}
+            ${methodOpts.map(m => `<option ${(act?.method || presetMethod) === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
         </div>
         <div class="form-field">
           <label>記錄人（負責業務）</label>
           <select name="owner">
-            ${Store.ownerOptionsHtml(data, act?.owner || Store.me())}
+            ${Store.ownerOptionsHtml(data, presetOwner)}
           </select>
         </div>
         <div class="form-field">
           <label>互動類型</label>
           <select name="type">
-            ${['首次接觸', '初步溝通', '需求確認', '方案演示', '報價溝通', '議價', '簽約', '售後服務', '後續跟進', '其他'].map(t => `<option ${act?.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+            ${typeOpts.map(t => `<option ${(act?.type || presetType) === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
         <div class="form-field">

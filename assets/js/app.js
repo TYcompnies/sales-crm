@@ -236,6 +236,14 @@ const App = (() => {
 
   const handleFab = (type) => {
     switch (type) {
+      case 'visit':
+        if (Store.load().deals.length === 0) {
+          toast('請先建立商機才能記錄拜訪', 'warning');
+          Deals.openForm();
+        } else {
+          Activities.openForm(null, null, { type: '拜訪', method: '當面拜訪', owner: Store.me() || '' });
+        }
+        break;
       case 'deal': Deals.openForm(); break;
       case 'company': Companies.openForm(); break;
       case 'contact': Contacts.openForm(); break;

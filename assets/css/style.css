@@ -1284,3 +1284,165 @@ input, textarea, select { font-family: inherit; outline: none; }
   .topbar { flex-wrap: wrap; gap: 10px; }
   .nav-tabs { order: 3; flex-basis: 100%; }
 }
+
+/* ============= 客戶拜訪流程（v2.1） ============= */
+
+/* 📞 拜訪 Hero Card */
+.visit-hero {
+  background: linear-gradient(135deg, rgba(139,92,246,.18), rgba(59,130,246,.12));
+  border: 1px solid rgba(139,92,246,.4);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+.visit-hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.visit-hero-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.visit-hero-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.visit-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+.vh-cell {
+  background: rgba(15,23,42,.5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  text-align: center;
+}
+.vh-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.vh-val { font-size: 22px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.vh-unit { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: 2px; }
+.vh-warn { border-color: var(--warning); background: rgba(245,158,11,.1); }
+.vh-warn .vh-val { color: var(--warning); }
+.vh-ok { border-color: var(--success); background: rgba(16,185,129,.08); }
+.vh-ok .vh-val { color: var(--success); }
+@media (max-width: 720px) {
+  .visit-hero-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* 🚦 應拜訪清單 */
+.visit-list-card { padding: 14px 18px; }
+.visit-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.visit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  transition: all .2s;
+}
+.visit-row:hover { background: var(--bg-hover); border-color: var(--accent); }
+.visit-row.lamp-red    { border-left-color: var(--danger); }
+.visit-row.lamp-yellow { border-left-color: var(--warning); }
+.visit-row.lamp-green  { border-left-color: var(--success); }
+.visit-row.lamp-gray   { border-left-color: var(--text-muted); }
+.visit-lamp { font-size: 18px; flex-shrink: 0; }
+.visit-info { flex: 1; min-width: 0; }
+.visit-info-title { font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.visit-info-meta { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.visit-action {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.visit-action:hover { background: var(--accent-hover); }
+.visit-action:disabled { opacity: .35; cursor: not-allowed; }
+@media (max-width: 720px) {
+  .visit-row { flex-wrap: wrap; }
+  .visit-action { width: 100%; }
+}
+
+/* 🎬 4 步引導卡 */
+.onboard-card {
+  background: linear-gradient(135deg, rgba(16,185,129,.10), rgba(59,130,246,.08));
+  border: 1px solid rgba(16,185,129,.35);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+.onboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.onboard-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.onboard-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.onboard-progress { min-width: 220px; flex: 1; max-width: 320px; }
+.onboard-progress-text { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; text-align: right; }
+.onboard-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(15,23,42,.5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.onboard-progress-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), var(--accent));
+  border-radius: 3px;
+  transition: width .3s;
+}
+.onboard-steps { display: flex; flex-direction: column; gap: 8px; }
+.onboard-step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: rgba(15,23,42,.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.onboard-step.done { border-color: var(--success); background: rgba(16,185,129,.08); }
+.onboard-step.done .onboard-step-no { background: var(--success); color: #fff; }
+.onboard-step-no {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.onboard-step-body { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.onboard-step-icon { font-size: 20px; }
+.onboard-step-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.onboard-step-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.onboard-step-check { font-size: 18px; }
+.onboard-go { padding: 6px 14px; font-size: 12px; }
+@media (max-width: 720px) {
+  .onboard-step { flex-wrap: wrap; }
+  .onboard-step-body { flex-basis: calc(100% - 44px); }
+  .onboard-go { width: 100%; margin-top: 4px; }
+}
