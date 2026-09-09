@@ -22,7 +22,8 @@ const Store = (() => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       owner: '鈦沅CRM',
-      team: []    // 業務成員清單 [{id, name}]
+      team: [],           // 業務成員清單 [{id, name}]
+      removedMembers: []  // 已刪除的業務名稱（防止 normalize 從其名下資料 owner 自動復活）
     }
   });
 
@@ -33,6 +34,10 @@ const Store = (() => {
   const normalize = (data) => {
     data.meta = { ...defaultData().meta, ...(data.meta || {}) };
     if (!Array.isArray(data.meta.team)) data.meta.team = [];
+    if (!Array.isArray(data.meta.removedMembers)) data.meta.removedMembers = [];
+    // 已刪除的業務不得殘留於 team（避免被下方 owner 掃描自動復活）
+    const removed = data.meta.removedMembers;
+    if (removed.length) data.meta.team = data.meta.team.filter(m => m && !removed.includes(m.name));
 
     const dealOwner = (dealId) => {
       const d = data.deals.find(x => x.id === dealId);
@@ -73,7 +78,7 @@ const Store = (() => {
       ...data.dailyMetrics.map(m => m.owner)
     ].filter(n => n && n !== '未指派'))];
     names.forEach(name => {
-      if (!data.meta.team.some(m => m.name === name)) {
+      if (!removed.includes(name) && !data.meta.team.some(m => m.name === name)) {
         data.meta.team.push({ id: uid('mb'), name });
       }
     });
@@ -163,23 +168,32 @@ const Store = (() => {
   // ===== 團隊成員管理 =====
   // 回傳業務成員（含「未指派」偽成員做顯示用，不參與選單）
   const teamMembers = (data) => data.meta?.team || [];
-  // 確保姓名在團隊清單中，回傳該成員
+  // 確保姓名在團隊清單中，回傳該成員（若曾被刪除則自動解除黑名單＝重新啟用）
   const ensureMember = (data, name) => {
     if (!name) return null;
     let m = (data.meta.team || []).find(x => x.name === name);
     if (!m) {
       m = { id: uid('mb'), name };
       data.meta.team.push(m);
+      const rm = data.meta.removedMembers || (data.meta.removedMembers = []);
+      const i = rm.indexOf(name);
+      if (i >= 0) rm.splice(i, 1);
     }
     return m;
   };
   // 從團隊移除成員（名下資料「不刪除」，owner 欄位保留原名 → 歷史歸屬不變）
+  // 會寫入 meta.removedMembers，避免 normalize() 從名下資料的 owner 自動把此人復活
   // 回傳 { removed, stats }：stats 統計該成員名下各類資料筆數（供刪除前警告）
   const removeMember = (data, name) => {
     const before = (data.meta.team || []).length;
     data.meta.team = (data.meta.team || []).filter(m => m.name !== name);
+    const removed = data.meta.team.length < before;
+    if (removed) {
+      const rm = data.meta.removedMembers || (data.meta.removedMembers = []);
+      if (!rm.includes(name)) rm.push(name);
+    }
     return {
-      removed: data.meta.team.length < before,
+      removed,
       stats: {
         companies: data.companies.filter(c => c.owner === name).length,
         contacts: data.contacts.filter(c => c.owner === name).length,
