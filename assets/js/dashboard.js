@@ -291,7 +291,7 @@ const Dashboard = (() => {
     const maxAmount = Math.max(...stageTotals.map(s => s.amount), 1);
     stageTotals.forEach(s => { s.pct = Math.round((s.amount / maxAmount) * 100); });
 
-    return { topDeals, todayTasks, recentActivities, talkRate, closeRate, winRate, advanceRate, stageTotals, visitStats };
+    return { topDeals, todayTasks, recentActivities, talkRate, closeRate, winRate, advanceRate, stageTotals };
   };
 
   // ===== 拜訪紀錄統計（今日/昨日/本週/本月/應拜訪）=====
