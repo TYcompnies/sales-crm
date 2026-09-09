@@ -214,7 +214,7 @@ const App = (() => {
     const data = Store.load();
     Store.ensureMember(data, name);
     Store.setProfile({ name, updatedAt: new Date().toISOString() });
-    Store.save(data);
+    Store.saveNow(data);
     Sync.broadcast(data);
     closeModal('profileModal');
     renderProfileUI();
@@ -234,7 +234,7 @@ const App = (() => {
     const data = Store.load();
     Store.ensureMember(data, name);
     Store.setProfile({ name, updatedAt: new Date().toISOString() });
-    Store.save(data);
+    Store.saveNow(data);
     Sync.broadcast(data);
     input.value = '';
     closeModal('profileModal');
@@ -282,7 +282,7 @@ const App = (() => {
       return;
     }
     if (Store.me() === name) Store.setProfile(null); // 刪除的是目前身份 → 登出
-    Store.save(final);
+    Store.saveNow(final); // 立即落庫（save 為 100ms debounce，會讓後續畫面刷新讀到舊資料）
     Sync.broadcast(final);
     renderProfileUI();
     render();
