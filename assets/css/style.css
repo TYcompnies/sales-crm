@@ -1183,18 +1183,34 @@ input, textarea, select { font-family: inherit; outline: none; }
 .profile-member {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 5px 6px 5px 8px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  cursor: pointer;
-  text-align: left;
   transition: all .2s;
   width: 100%;
 }
-.profile-member:hover { background: var(--bg-hover); border-color: var(--accent); }
+.profile-member:hover { border-color: var(--accent); }
 .profile-member.active { border-color: var(--accent); background: rgba(59,130,246,.12); }
+.profile-member .pm-select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background .2s;
+}
+.profile-member .pm-select:hover { background: rgba(255,255,255,.05); }
+.profile-member.active .pm-select:hover { background: rgba(59,130,246,.08); }
 .profile-member .pm-avatar {
   width: 34px;
   height: 34px;
@@ -1210,7 +1226,30 @@ input, textarea, select { font-family: inherit; outline: none; }
 }
 .profile-member .pm-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .profile-member .pm-sub { font-size: 11px; color: var(--text-muted); }
-.profile-member .pm-check { margin-left: auto; color: var(--success); font-size: 16px; }
+.profile-member .pm-check { color: var(--success); font-size: 16px; flex-shrink: 0; }
+.profile-member .pm-del {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  opacity: .5;
+  cursor: pointer;
+  transition: all .2s;
+}
+.profile-member .pm-del:hover {
+  opacity: 1;
+  background: rgba(239,68,68,.16);
+  border-color: rgba(239,68,68,.45);
+  color: #f87171;
+}
 .profile-add-row { display: flex; gap: 8px; margin-top: 8px; }
 .profile-add-row input {
   flex: 1;

@@ -174,27 +174,36 @@ const App = (() => {
     }
   };
 
-  // 開啟身份選擇 Modal（渲染團隊成員清單）
+  // 開啟身份選擇 Modal（渲染團隊成員清單：點名字切身份、🗑 刪除）
   const openProfileModal = () => {
     const data = Store.load();
     const me = Store.me();
     const list = document.getElementById('profileMemberList');
     const team = Store.teamMembers(data);
     list.innerHTML = team.map(m => `
-      <button class="profile-member ${m.name === me ? 'active' : ''}" data-name="${escapeHtml(m.name)}">
-        <span class="pm-avatar">${escapeHtml(m.name.trim().charAt(0) || '?')}</span>
-        <span style="flex:1;min-width:0;">
-          <span class="pm-name">${escapeHtml(m.name)}</span>
-          <div class="pm-sub">${m.name === me ? '✓ 目前身份' : '點此切換身份'}</div>
-        </span>
-        ${m.name === me ? '<span class="pm-check">✓</span>' : ''}
-      </button>
+      <div class="profile-member ${m.name === me ? 'active' : ''}">
+        <button class="pm-select" data-name="${escapeHtml(m.name)}" title="切換到此身份">
+          <span class="pm-avatar">${escapeHtml(m.name.trim().charAt(0) || '?')}</span>
+          <span style="flex:1;min-width:0;">
+            <span class="pm-name">${escapeHtml(m.name)}</span>
+            <div class="pm-sub">${m.name === me ? '✓ 目前身份' : '點此切換身份'}</div>
+          </span>
+          ${m.name === me ? '<span class="pm-check">✓</span>' : ''}
+        </button>
+        <button class="pm-del" data-name="${escapeHtml(m.name)}" title="刪除業務：${escapeHtml(m.name)}">🗑</button>
+      </div>
     `).join('');
     if (team.length === 0) {
-      list.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">團隊清單是空的 — 在下方輸入姓名建立第一位業務。</div>';
+      list.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">團隊清單是空的 — 在下方輸入姓名新增第一位業務。</div>';
     }
-    list.querySelectorAll('.profile-member').forEach(btn => {
+    list.querySelectorAll('.pm-select').forEach(btn => {
       btn.addEventListener('click', () => selectProfile(btn.dataset.name));
+    });
+    list.querySelectorAll('.pm-del').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeProfile(btn.dataset.name);
+      });
     });
     openModal('profileModal');
   };
@@ -232,6 +241,54 @@ const App = (() => {
     renderProfileUI();
     render();
     toast(`已建立身份：${name}`, 'success');
+  };
+
+  // 刪除業務身份（名下資料保留，owner 欄位不動）
+  const removeProfile = async (name) => {
+    if (!name) return;
+    const data = Store.load();
+    const team = Store.teamMembers(data);
+    if (team.length <= 1) {
+      toast('團隊至少需保留一位業務', 'warning');
+      return;
+    }
+    if (!team.some(m => m.name === name)) {
+      toast('查無此業務', 'warning');
+      return;
+    }
+    const label = { companies: '客戶', contacts: '聯絡人', deals: '商機', activities: '互動', tasks: '任務' };
+    const stats = {
+      companies: data.companies.filter(c => c.owner === name).length,
+      contacts: data.contacts.filter(c => c.owner === name).length,
+      deals: data.deals.filter(d => d.owner === name).length,
+      activities: data.activities.filter(a => a.owner === name).length,
+      tasks: data.tasks.filter(t => t.owner === name).length
+    };
+    const parts = Object.entries(stats).filter(([, v]) => v > 0)
+      .map(([k, v]) => `${label[k] || k} ${v} 筆`);
+    const isMe = Store.me() === name;
+    const msg =
+      `確定刪除業務「${name}」？` +
+      (parts.length
+        ? ` 該業務名下仍有 ${parts.join('、')}。刪除後這些資料不會消失（負責人欄位保留原名），只是無法再以該身份登入。`
+        : ' 該業務名下沒有資料，可直接移除。') +
+      (isMe ? '（這是你的目前身份，刪除後將自動登出。）' : '');
+    const ok = await confirm(msg);
+    if (!ok) return;
+    const final = Store.load(); // 重新讀取，避免 await 期間資料變動
+    const res = Store.removeMember(final, name);
+    if (!res.removed) {
+      toast('刪除失敗：查無此業務', 'error');
+      return;
+    }
+    if (Store.me() === name) Store.setProfile(null); // 刪除的是目前身份 → 登出
+    Store.save(final);
+    Sync.broadcast(final);
+    renderProfileUI();
+    render();
+    const modal = document.getElementById('profileModal');
+    if (modal.classList.contains('open')) openProfileModal(); // 刷新成員清單
+    toast(`已刪除業務：${name}`, 'success');
   };
 
   const handleFab = (type) => {

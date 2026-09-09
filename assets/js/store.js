@@ -173,6 +173,22 @@ const Store = (() => {
     }
     return m;
   };
+  // 從團隊移除成員（名下資料「不刪除」，owner 欄位保留原名 → 歷史歸屬不變）
+  // 回傳 { removed, stats }：stats 統計該成員名下各類資料筆數（供刪除前警告）
+  const removeMember = (data, name) => {
+    const before = (data.meta.team || []).length;
+    data.meta.team = (data.meta.team || []).filter(m => m.name !== name);
+    return {
+      removed: data.meta.team.length < before,
+      stats: {
+        companies: data.companies.filter(c => c.owner === name).length,
+        contacts: data.contacts.filter(c => c.owner === name).length,
+        deals: data.deals.filter(d => d.owner === name).length,
+        activities: data.activities.filter(a => a.owner === name).length,
+        tasks: data.tasks.filter(t => t.owner === name).length
+      }
+    };
+  };
   // 目前使用者名稱（無 Profile 回空字串）
   const me = () => getProfile()?.name || '';
   // owner 下拉選單 HTML：保留既有值（舊資料/未指派），團隊成員依 meta.team
@@ -274,6 +290,7 @@ const Store = (() => {
     setDashMode,
     teamMembers,
     ensureMember,
+    removeMember,
     me,
     ownerOptionsHtml
   };
