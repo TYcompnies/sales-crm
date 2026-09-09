@@ -1,30 +1,94 @@
 /**
- * Dashboard - 今日戰報儀表板
+ * Dashboard - 今日戰報儀表板（我的 / 團隊切換）
  */
 
 const Dashboard = (() => {
 
+  // 本地日期字串（避免 UTC 跳日）
+  const localDateStr = (offset = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+
+  // 依「我的/團隊」模式過濾資料（mine 只留自己的資料）
+  const scoped = (data, mode, me) => {
+    if (mode !== 'mine' || !me) return data;
+    return {
+      ...data,
+      companies: data.companies.filter(c => c.owner === me),
+      contacts: data.contacts.filter(c => c.owner === me),
+      deals: data.deals.filter(d => d.owner === me),
+      activities: data.activities.filter(a => a.owner === me),
+      tasks: data.tasks.filter(t => t.owner === me),
+      dailyMetrics: data.dailyMetrics.filter(m => m.owner === me)
+    };
+  };
+
+  // 當天指標：mine → 自己的那筆；team → 全隊當天加總
+  const todayMetricsOf = (data, today, mode, me) => {
+    const rows = data.dailyMetrics.filter(m => m.date === today);
+    if (mode === 'mine') return rows.find(m => m.owner === me) || {};
+    return {
+      callCount: rows.reduce((s, m) => s + (m.callCount || 0), 0),
+      visitCount: rows.reduce((s, m) => s + (m.visitCount || 0), 0),
+      newLeads: rows.reduce((s, m) => s + (m.newLeads || 0), 0),
+      effectiveTalks: rows.reduce((s, m) => s + (m.effectiveTalks || 0), 0),
+      contactCount: rows.reduce((s, m) => s + (m.contactCount || 0), 0),
+      closedToday: rows.reduce((s, m) => s + (m.closedToday || 0), 0),
+      targetCall: rows.reduce((s, m) => s + (m.targetCall || 0), 0),
+      targetVisit: rows.reduce((s, m) => s + (m.targetVisit || 0), 0)
+    };
+  };
+
   const render = () => {
     const data = Store.load();
-    const today = new Date().toISOString().slice(0, 10);
-    const todayMetrics = data.dailyMetrics.find(m => m.date === today) || {};
+    const me = Store.me();
+    const dashMode = Store.getDashMode();        // 'mine' | 'team'
+    const needGuide = dashMode === 'mine' && !me; // 我的模式但還沒選身份 → 顯示引導
+    const scopeMode = needGuide ? 'team' : dashMode;
+    const sd = scoped(data, scopeMode, me);
+    const today = localDateStr(0);
+    const todayMetrics = todayMetricsOf(sd, today, scopeMode, me);
     const monthPrefix = today.slice(0, 7);
 
     // 計算核心指標
-    const stats = calcStats(data, todayMetrics, monthPrefix);
+    const stats = calcStats(sd, todayMetrics, monthPrefix, today);
+
+    // 今日其他業務復盤（自己的除外，供團隊互看）
+    const othersReflection = data.dailyMetrics
+      .filter(m => m.date === today && (!me || m.owner !== me) && (m.learning || m.topThree));
+
+    const titleHtml = dashMode === 'mine' && me
+      ? `📊 我的今日戰報 · ${escapeHtml(me)}`
+      : `📊 團隊今日戰報 · ${today}`;
 
     const html = `
       <div class="view-header">
         <div>
-          <h2 class="view-title">📊 今日戰報 · ${today}</h2>
+          <h2 class="view-title">${titleHtml}</h2>
           <p class="view-subtitle">晨間規劃 → 午間執行 → 傍晚復盤 · 量化指標即時更新</p>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div class="seg" id="dashModeSeg">
+            <button class="seg-btn ${dashMode === 'team' ? 'active' : ''}" data-mode="team">👥 團隊</button>
+            <button class="seg-btn ${dashMode === 'mine' ? 'active' : ''}" data-mode="mine">🙋 我的</button>
+          </div>
           <button class="btn-secondary" id="btnFillMetric">📈 填寫今日數據</button>
         </div>
       </div>
 
-      <h3 style="font-size:14px;margin-bottom:12px;color:var(--text-secondary);">🔥 活動量指標</h3>
+      ${needGuide ? `
+        <div class="guide-banner">
+          <div class="guide-text">
+            <b>👋 歡迎使用鈦沅CRM作戰！</b>
+            <span>先設定「你是哪位業務」，之後新增的客戶 / 聯絡人 / 商機 / 互動 / 任務都會自動掛上你的名字；戰報就能切換「我的 / 團隊」。</span>
+          </div>
+          <button class="btn-primary" id="btnGuideProfile">👤 設定身份</button>
+        </div>
+      ` : ''}
+
+      <h3 style="font-size:14px;margin-bottom:12px;color:var(--text-secondary);">🔥 活動量指標 <span style="font-weight:400;color:var(--text-muted);">${dashMode === 'mine' ? '（只看我自己）' : '（全團隊合計）'}</span></h3>
       <div class="stats-grid">
         ${renderActivityCard('今日撥打量', todayMetrics.callCount || 0, todayMetrics.targetCall || 15, '通', 'info')}
         ${renderActivityCard('今日拜訪量', todayMetrics.visitCount || 0, todayMetrics.targetVisit || 5, '次', 'purple')}
@@ -45,7 +109,7 @@ const Dashboard = (() => {
           <h3>🔥 今日必推進（按熱度指數排序） <span class="badge">${stats.topDeals.length}</span></h3>
           ${stats.topDeals.length === 0 ? '<div class="empty" style="padding:30px 10px;"><div class="empty-icon">🎉</div><div class="empty-text">目前沒有進行中的商機</div></div>' : ''}
           ${stats.topDeals.slice(0, 5).map(d => {
-            const company = data.companies.find(c => c.id === d.companyId);
+            const company = sd.companies.find(c => c.id === d.companyId);
             const daysLeft = d.dueDate ? Math.ceil((new Date(d.dueDate) - new Date()) / (1000*60*60*24)) : null;
             return `
               <div class="list-item" data-deal-id="${d.id}">
@@ -54,7 +118,7 @@ const Dashboard = (() => {
                   ${escapeHtml(d.name)}
                 </div>
                 <div class="list-item-meta">
-                  ${escapeHtml(company?.name || '未綁定客戶')} · ${d.prob}%
+                  ${escapeHtml(company?.name || '未綁定客戶')} · 👤 ${escapeHtml(d.owner || '未指派')} · ${d.prob}%
                   ${daysLeft !== null ? (daysLeft >= 0 ? ` · 剩 ${daysLeft} 天` : ` · <span style="color:var(--danger);">逾期 ${Math.abs(daysLeft)} 天</span>`) : ''}
                   · <span style="color:var(--warning);">🔥 ${d.heat.score}</span>
                 </div>
@@ -67,7 +131,7 @@ const Dashboard = (() => {
           <h3>⏰ 今日截止任務 <span class="badge">${stats.todayTasks.length}</span></h3>
           ${stats.todayTasks.length === 0 ? '<div class="empty" style="padding:30px 10px;"><div class="empty-icon">✅</div><div class="empty-text">今日無截止任務</div></div>' : ''}
           ${stats.todayTasks.slice(0, 5).map(t => {
-            const deal = data.deals.find(d => d.id === t.dealId);
+            const deal = sd.deals.find(d => d.id === t.dealId);
             return `
               <div class="list-item">
                 <div class="list-item-title">
@@ -75,7 +139,7 @@ const Dashboard = (() => {
                   ${t.status === 'completed' ? '✅ ' : ''}${escapeHtml(t.title)}
                 </div>
                 <div class="list-item-meta">
-                  ${deal ? escapeHtml(deal.name) : '未綁定商機'} · ${escapeHtml(t.owner || '未指派')}
+                  ${deal ? escapeHtml(deal.name) : '未綁定商機'} · 👤 ${escapeHtml(t.owner || '未指派')}
                 </div>
               </div>
             `;
@@ -88,15 +152,15 @@ const Dashboard = (() => {
           <h3>📞 最後互動排行（最近聯絡的客戶）</h3>
           ${stats.recentActivities.length === 0 ? '<div class="empty" style="padding:30px 10px;"><div class="empty-icon">💬</div><div class="empty-text">尚無互動紀錄</div></div>' : ''}
           ${stats.recentActivities.slice(0, 5).map(a => {
-            const deal = data.deals.find(d => d.id === a.dealId);
-            const company = deal ? data.companies.find(c => c.id === deal.companyId) : null;
+            const deal = sd.deals.find(d => d.id === a.dealId);
+            const company = deal ? sd.companies.find(c => c.id === deal.companyId) : null;
             return `
               <div class="list-item">
                 <div class="list-item-title">
                   ${a.method} · ${a.type}
                 </div>
                 <div class="list-item-meta">
-                  ${escapeHtml(deal?.name || '')} · ${escapeHtml(company?.name || '')} · ${a.date}
+                  ${escapeHtml(deal?.name || '')} · ${escapeHtml(company?.name || '')} · 👤 ${escapeHtml(a.owner || '未指派')} · ${a.date}
                 </div>
                 <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${escapeHtml(a.summary || '')}</div>
               </div>
@@ -122,21 +186,42 @@ const Dashboard = (() => {
       </div>
 
       <div class="card mt-3">
-        <div class="card-title">🌅 夕會復盤強制欄位</div>
-        <p class="muted" style="font-size:12px;margin-bottom:12px;">每日 18:00 後填寫今日學習 + 明日三個首要目標（建議手機拍照存證）。</p>
-        <div class="form-grid">
-          <div class="form-field">
-            <label>今日最大學習點</label>
-            <textarea id="metricLearning" placeholder="今天最大的收穫是什麼？">${escapeHtml(todayMetrics.learning || '')}</textarea>
+        <div class="card-title">🌅 夕會復盤強制欄位 <span style="font-size:11px;color:var(--text-muted);font-weight:400;">（每日 18:00 後填寫，儲存後掛在自己名下）</span></div>
+
+        ${othersReflection.length > 0 ? `
+          <div style="margin-bottom:16px;">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">🤝 同事今日已填：</div>
+            ${othersReflection.map(o => `
+              <div style="padding:8px 12px;background:var(--bg-secondary);border-radius:6px;margin-bottom:6px;font-size:12px;border-left:3px solid var(--accent);">
+                <b>👤 ${escapeHtml(o.owner)}</b>
+                ${o.learning ? `<div style="color:var(--text-secondary);margin-top:2px;">💡 ${escapeHtml(o.learning)}</div>` : ''}
+                ${o.topThree ? `<div style="color:var(--text-muted);margin-top:2px;white-space:pre-line;">🎯 ${escapeHtml(o.topThree)}</div>` : ''}
+              </div>
+            `).join('')}
           </div>
-          <div class="form-field">
-            <label>明日三個首要目標</label>
-            <textarea id="metricTopThree" placeholder="1. ...\n2. ...\n3. ...">${escapeHtml(todayMetrics.topThree || '')}</textarea>
+        ` : ''}
+
+        ${!me ? `
+          <div class="guide-banner" style="margin-bottom:4px;">
+            <div class="guide-text"><b>設定身份後才能填寫每日復盤</b><span>選擇你是哪位業務，復盤內容會記錄在該業務名下。</span></div>
+            <button class="btn-primary" id="btnReflectProfile">👤 設定身份</button>
           </div>
-        </div>
-        <div class="form-actions">
-          <button class="btn-primary" id="btnSaveReflection">💾 儲存復盤</button>
-        </div>
+        ` : `
+          <p class="muted" style="font-size:12px;margin-bottom:12px;">以 <b>${escapeHtml(me)}</b> 的身份填寫今日學習 + 明日三個首要目標（建議手機拍照存證）。</p>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>今日最大學習點</label>
+              <textarea id="metricLearning" placeholder="今天最大的收穫是什麼？">${escapeHtml(todayMetrics.learning || '')}</textarea>
+            </div>
+            <div class="form-field">
+              <label>明日三個首要目標</label>
+              <textarea id="metricTopThree" placeholder="1. ...\n2. ...\n3. ...">${escapeHtml(todayMetrics.topThree || '')}</textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" id="btnSaveReflection">💾 儲存我的復盤</button>
+          </div>
+        `}
       </div>
     `;
 
@@ -144,12 +229,11 @@ const Dashboard = (() => {
     bindEvents();
   };
 
-  const calcStats = (data, todayMetrics, monthPrefix) => {
+  const calcStats = (data, todayMetrics, monthPrefix, today) => {
     // 今日必推進（按熱度排序）
     const topDeals = Store.dealsByHeat(data);
 
     // 今日截止任務
-    const today = new Date().toISOString().slice(0, 10);
     const todayTasks = data.tasks
       .filter(t => t.dueDate === today && t.status !== 'completed')
       .sort((a, b) => {
@@ -167,14 +251,10 @@ const Dashboard = (() => {
     const effectiveTalks = todayMetrics.effectiveTalks || 0;
     const talkRate = contactCount > 0 ? Math.round((effectiveTalks / contactCount) * 100) : 0;
 
-    // 對話→成交（本月）
-    const monthDeals = data.activities.filter(a => a.date && a.date.startsWith(monthPrefix));
-    const monthClosed = (todayMetrics.closedToday || 0) + data.dailyMetrics
-      .filter(m => m.date.startsWith(monthPrefix))
-      .reduce((sum, m) => sum + (m.closedToday || 0), 0);
-    const monthTalks = data.dailyMetrics
-      .filter(m => m.date.startsWith(monthPrefix))
-      .reduce((sum, m) => sum + (m.effectiveTalks || 0), 0);
+    // 對話→成交（本月，依 dailyMetrics 累計，避免重複加當天）
+    const monthMetrics = data.dailyMetrics.filter(m => m.date && m.date.startsWith(monthPrefix));
+    const monthClosed = monthMetrics.reduce((sum, m) => sum + (m.closedToday || 0), 0);
+    const monthTalks = monthMetrics.reduce((sum, m) => sum + (m.effectiveTalks || 0), 0);
     const closeRate = monthTalks > 0 ? Math.round((monthClosed / monthTalks) * 100) : 0;
 
     // 贏率
@@ -241,20 +321,40 @@ const Dashboard = (() => {
   const bindEvents = () => {
     document.getElementById('btnFillMetric')?.addEventListener('click', () => Metrics.openForm());
     document.getElementById('btnSaveReflection')?.addEventListener('click', saveReflection);
+    document.getElementById('btnGuideProfile')?.addEventListener('click', () => App.openModal('profileModal'));
+    document.getElementById('btnReflectProfile')?.addEventListener('click', () => App.openModal('profileModal'));
+    document.querySelectorAll('#dashModeSeg .seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        if (mode === 'mine' && !Store.me()) {
+          App.toast('請先設定你的身份（右上角 👤）', 'warning');
+          App.openModal('profileModal');
+          return;
+        }
+        Store.setDashMode(mode);
+        render();
+      });
+    });
     document.querySelectorAll('.list-item[data-deal-id]').forEach(el => {
       el.addEventListener('click', () => Deals.openDetail(el.dataset.dealId));
     });
   };
 
   const saveReflection = () => {
+    const me = Store.me();
+    if (!me) {
+      App.toast('請先設定身份，再儲存復盤', 'warning');
+      App.openModal('profileModal');
+      return;
+    }
     const data = Store.load();
-    const today = new Date().toISOString().slice(0, 10);
-    let metric = data.dailyMetrics.find(m => m.date === today);
+    const today = localDateStr(0);
+    let metric = data.dailyMetrics.find(m => m.date === today && m.owner === me);
     if (!metric) {
       metric = {
         id: Store.uid('mt'),
         date: today,
-        owner: '林業務',
+        owner: me,
         contactCount: 0,
         effectiveTalks: 0,
         newLeads: 0,

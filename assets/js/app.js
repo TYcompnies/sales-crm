@@ -41,7 +41,10 @@ const App = (() => {
     Sync.init();
     Sync.updateIndicator();
 
-    // 5. 渲染當前視圖
+    // 5. 更新右上角身份顯示
+    renderProfileUI();
+
+    // 6. 渲染當前視圖
     render();
 
     console.log('[App] CRM 已啟動，資料：', Store.load());
@@ -103,6 +106,13 @@ const App = (() => {
     document.getElementById('btnGenLink').addEventListener('click', Sync.generateShareLink);
     document.getElementById('btnCopyLink').addEventListener('click', Sync.copyShareLink);
 
+    // 身份選擇（多業務）
+    document.getElementById('btnUser').addEventListener('click', openProfileModal);
+    document.getElementById('btnProfileCreate').addEventListener('click', createProfile);
+    document.getElementById('profileNewName').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') createProfile();
+    });
+
     // 確認 Modal
     document.getElementById('confirmCancel').addEventListener('click', () => {
       closeModal('confirmModal');
@@ -143,6 +153,85 @@ const App = (() => {
         document.getElementById('fabMenu').classList.remove('open');
       }
     });
+  };
+
+  // ===== 身份（多業務 Profile）=====
+  const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+
+  // 更新右上角身份 chip
+  const renderProfileUI = () => {
+    const p = Store.getProfile();
+    const avatar = document.getElementById('userAvatar');
+    const nameEl = document.getElementById('userName');
+    if (p?.name) {
+      avatar.textContent = p.name.trim().charAt(0) || '?';
+      nameEl.textContent = p.name;
+    } else {
+      avatar.textContent = '👤';
+      nameEl.textContent = '未登入';
+    }
+  };
+
+  // 開啟身份選擇 Modal（渲染團隊成員清單）
+  const openProfileModal = () => {
+    const data = Store.load();
+    const me = Store.me();
+    const list = document.getElementById('profileMemberList');
+    const team = Store.teamMembers(data);
+    list.innerHTML = team.map(m => `
+      <button class="profile-member ${m.name === me ? 'active' : ''}" data-name="${escapeHtml(m.name)}">
+        <span class="pm-avatar">${escapeHtml(m.name.trim().charAt(0) || '?')}</span>
+        <span style="flex:1;min-width:0;">
+          <span class="pm-name">${escapeHtml(m.name)}</span>
+          <div class="pm-sub">${m.name === me ? '✓ 目前身份' : '點此切換身份'}</div>
+        </span>
+        ${m.name === me ? '<span class="pm-check">✓</span>' : ''}
+      </button>
+    `).join('');
+    if (team.length === 0) {
+      list.innerHTML = '<div class="muted" style="padding:12px;text-align:center;">團隊清單是空的 — 在下方輸入姓名建立第一位業務。</div>';
+    }
+    list.querySelectorAll('.profile-member').forEach(btn => {
+      btn.addEventListener('click', () => selectProfile(btn.dataset.name));
+    });
+    openModal('profileModal');
+  };
+
+  // 切換身份到指定業務
+  const selectProfile = (name) => {
+    if (!name) return;
+    const data = Store.load();
+    Store.ensureMember(data, name);
+    Store.setProfile({ name, updatedAt: new Date().toISOString() });
+    Store.save(data);
+    Sync.broadcast(data);
+    closeModal('profileModal');
+    renderProfileUI();
+    render();
+    toast(`已切換身份：${name}`, 'success');
+  };
+
+  // 建立新業務身份
+  const createProfile = () => {
+    const input = document.getElementById('profileNewName');
+    const name = (input.value || '').trim();
+    if (!name) {
+      toast('請先輸入姓名', 'warning');
+      input.focus();
+      return;
+    }
+    const data = Store.load();
+    Store.ensureMember(data, name);
+    Store.setProfile({ name, updatedAt: new Date().toISOString() });
+    Store.save(data);
+    Sync.broadcast(data);
+    input.value = '';
+    closeModal('profileModal');
+    renderProfileUI();
+    render();
+    toast(`已建立身份：${name}`, 'success');
   };
 
   const handleFab = (type) => {

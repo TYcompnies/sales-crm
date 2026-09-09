@@ -1,15 +1,22 @@
 /**
- * Seed - 預載範例資料（大叔提供的三筆商機）
+ * Seed - 預載範例資料（三業務示範：林建宏 / 張雅婷 / 陳冠宇）
+ * 建立日期刻意分散在 9/7、9/8、9/9，讓「每日新增戰報」有三天資料可看
  */
 
 const Seed = (() => {
 
-  const today = () => new Date().toISOString().slice(0, 10);
-  const isoToday = new Date().toISOString();
+  // 本地日期字串（避免 UTC 跳日），offset = 往前推幾天
+  const localDate = (offset = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+  const createdAtOf = (offset) => localDate(offset) + 'T08:00:00';
+  const today = () => localDate(0);
 
   const seedData = () => {
     const data = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       companies: [],
       contacts: [],
       deals: [],
@@ -17,14 +24,19 @@ const Seed = (() => {
       tasks: [],
       dailyMetrics: [],
       meta: {
-        createdAt: isoToday,
-        updatedAt: isoToday,
-        owner: '41大叔',
-        seeded: true
+        createdAt: createdAtOf(0),
+        updatedAt: createdAtOf(0),
+        owner: '鈦沅CRM',
+        seeded: true,
+        team: [
+          { id: 'mb_lin', name: '林建宏' },
+          { id: 'mb_chang', name: '張雅婷' },
+          { id: 'mb_chen', name: '陳冠宇' }
+        ]
       }
     };
 
-    // ===== 1. 智邦科技 =====
+    // ===== 1. 智邦科技（林建宏，9/9 新增）=====
     const c1 = {
       id: Store.uid('co'),
       name: '智邦科技股份有限公司',
@@ -34,10 +46,11 @@ const Seed = (() => {
       capital: null,
       region: '新竹科學園區',
       source: '舊客戶回流',
+      owner: '林建宏',
       tags: ['A+', '高科技', '高金額'],
       website: 'https://www.accton.com.tw',
       notes: '台灣網通設備大廠，重點客戶',
-      createdAt: isoToday
+      createdAt: createdAtOf(0)
     };
     const ct1 = {
       id: Store.uid('ct'),
@@ -45,11 +58,13 @@ const Seed = (() => {
       name: '陳建宏',
       position: '技術長',
       influence: '關鍵決策者',
+      owner: '林建宏',
       line: '@chenjh',
       email: 'jh.chen@accton.com',
       phone: '0928-777-666',
       birthday: null,
-      notes: ''
+      notes: '',
+      createdAt: createdAtOf(0)
     };
     const d1 = {
       id: Store.uid('dl'),
@@ -70,14 +85,15 @@ const Seed = (() => {
       lastDate: today(),
       lastMethod: '當面拜訪',
       lastType: '方案演示',
-      owner: '林業務',
+      owner: '林建宏',
       tags: ['高金額', '重點'],
-      createdAt: isoToday
+      createdAt: createdAtOf(0)
     };
     const a1 = {
       id: Store.uid('act'),
       dealId: d1.id,
       contactId: ct1.id,
+      owner: '林建宏',
       date: today(),
       method: '當面拜訪',
       type: '方案演示',
@@ -85,20 +101,20 @@ const Seed = (() => {
       feedback: '對效能滿意，但要求提供3年保固',
       concerns: '價格過高',
       competitor: '奇鋐科技',
-      createdAt: isoToday
+      createdAt: createdAtOf(0)
     };
     const t1 = {
       id: Store.uid('tk'),
       dealId: d1.id,
       title: '準備保固成本分析與議價對策',
-      owner: '林業務',
+      owner: '林建宏',
       dueDate: '2026-09-12',
       priority: 'P1',
       status: 'open',
-      createdAt: isoToday
+      createdAt: createdAtOf(0)
     };
 
-    // ===== 2. 台亞半導體 =====
+    // ===== 2. 台亞半導體（林建宏，9/8 新增）=====
     const c2 = {
       id: Store.uid('co'),
       name: '台亞半導體股份有限公司',
@@ -108,10 +124,11 @@ const Seed = (() => {
       capital: null,
       region: '桃園市',
       source: '業務開發',
+      owner: '林建宏',
       tags: ['A+', '高科技', '高金額'],
       website: '',
       notes: '',
-      createdAt: isoToday
+      createdAt: createdAtOf(1)
     };
     const ct2 = {
       id: Store.uid('ct'),
@@ -119,11 +136,13 @@ const Seed = (() => {
       name: '張美玲',
       position: '採購經理',
       influence: '守門人',
+      owner: '林建宏',
       line: '',
       email: 'ml.chang@taiya.com.tw',
       phone: '0933-452-111',
       birthday: null,
-      notes: '預算審核關鍵人'
+      notes: '預算審核關鍵人',
+      createdAt: createdAtOf(1)
     };
     const d2 = {
       id: Store.uid('dl'),
@@ -144,14 +163,15 @@ const Seed = (() => {
       lastDate: '2026-09-08',
       lastMethod: '視訊會議',
       lastType: '報價溝通',
-      owner: '林業務',
+      owner: '林建宏',
       tags: ['緊急', '高金額'],
-      createdAt: isoToday
+      createdAt: createdAtOf(1)
     };
     const a2 = {
       id: Store.uid('act'),
       dealId: d2.id,
       contactId: ct2.id,
+      owner: '林建宏',
       date: '2026-09-08',
       method: '視訊會議',
       type: '報價溝通',
@@ -159,20 +179,20 @@ const Seed = (() => {
       feedback: '要求降價至350萬否則轉單',
       concerns: '預算上限明確，需高層授權特惠價',
       competitor: '蔚華科技',
-      createdAt: isoToday
+      createdAt: createdAtOf(1)
     };
     const t2 = {
       id: Store.uid('tk'),
       dealId: d2.id,
       title: '向主管申請專案折扣',
-      owner: '林業務',
+      owner: '林建宏',
       dueDate: '2026-09-10',
       priority: 'P1',
       status: 'open',
-      createdAt: isoToday
+      createdAt: createdAtOf(1)
     };
 
-    // ===== 3. 樂森餐飲 =====
+    // ===== 3. 樂森餐飲（張雅婷，9/7 新增）=====
     const c3 = {
       id: Store.uid('co'),
       name: '樂森餐飲連鎖集團',
@@ -182,10 +202,11 @@ const Seed = (() => {
       capital: null,
       region: '台中市',
       source: '客戶介紹',
+      owner: '張雅婷',
       tags: ['B', '連鎖'],
       website: '',
       notes: '',
-      createdAt: isoToday
+      createdAt: createdAtOf(2)
     };
     const ct3 = {
       id: Store.uid('ct'),
@@ -193,11 +214,13 @@ const Seed = (() => {
       name: '王俊傑',
       position: '資訊長',
       influence: '關鍵決策者',
+      owner: '張雅婷',
       line: '',
       email: 'jj.wang@lesen.com.tw',
       phone: '0975-888-123',
       birthday: null,
-      notes: ''
+      notes: '',
+      createdAt: createdAtOf(2)
     };
     const d3 = {
       id: Store.uid('dl'),
@@ -218,14 +241,15 @@ const Seed = (() => {
       lastDate: '2026-09-07',
       lastMethod: '電話',
       lastType: '後續跟進',
-      owner: '林業務',
+      owner: '張雅婷',
       tags: ['教育期'],
-      createdAt: isoToday
+      createdAt: createdAtOf(2)
     };
     const a3 = {
       id: Store.uid('act'),
       dealId: d3.id,
       contactId: ct3.id,
+      owner: '張雅婷',
       date: '2026-09-07',
       method: '電話',
       type: '後續跟進',
@@ -233,24 +257,24 @@ const Seed = (() => {
       feedback: '對訂閱制收費方式有興趣，但擔心離線交易中斷',
       concerns: '內部IT團隊傾向自建機房',
       competitor: '微軟合作夥伴',
-      createdAt: isoToday
+      createdAt: createdAtOf(2)
     };
     const t3 = {
       id: Store.uid('tk'),
       dealId: d3.id,
       title: '提供斷線續傳技術白皮書',
-      owner: '林業務',
+      owner: '張雅婷',
       dueDate: '2026-09-14',
       priority: 'P2',
       status: 'open',
-      createdAt: isoToday
+      createdAt: createdAtOf(2)
     };
 
-    // ===== 今日量化指標 =====
-    const m1 = {
+    // ===== 每日量化指標（同一天可多位業務各自填寫）=====
+    const m1 = {   // 9/9 林建宏
       id: Store.uid('mt'),
       date: today(),
-      owner: '林業務',
+      owner: '林建宏',
       contactCount: 8,
       effectiveTalks: 5,
       newLeads: 2,
@@ -260,8 +284,40 @@ const Seed = (() => {
       targetCall: 15,
       targetVisit: 5,
       learning: '智邦報價準備充分，客戶反應正面',
-      topThree: '1. 完成智邦報價議價對策\n2. 申請台亞特惠折扣\n3. 寄送樂森技術白皮書',
-      createdAt: isoToday
+      topThree: '1. 完成智邦報價議價對策\n2. 申請台亞特惠折扣\n3. 開發 2 家新網通客戶',
+      createdAt: createdAtOf(0)
+    };
+    const m2 = {   // 9/9 張雅婷
+      id: Store.uid('mt'),
+      date: today(),
+      owner: '張雅婷',
+      contactCount: 6,
+      effectiveTalks: 3,
+      newLeads: 1,
+      callCount: 9,
+      visitCount: 2,
+      closedToday: 0,
+      targetCall: 12,
+      targetVisit: 4,
+      learning: '樂森對離線交易中斷有疑慮，需補技術白皮書',
+      topThree: '1. 寄送樂森斷線續傳白皮書\n2. 約樂森 IT 主管做第二次簡報\n3. 回訪 2 家餐飲連鎖老客戶',
+      createdAt: createdAtOf(0)
+    };
+    const m3 = {   // 9/8 陳冠宇
+      id: Store.uid('mt'),
+      date: localDate(1),
+      owner: '陳冠宇',
+      contactCount: 10,
+      effectiveTalks: 4,
+      newLeads: 3,
+      callCount: 14,
+      visitCount: 1,
+      closedToday: 1,
+      targetCall: 15,
+      targetVisit: 3,
+      learning: '陌生開發命中率：A+ 名單遠高於隨機名單，明天繼續照標籤打',
+      topThree: '1. 跟進昨日新增 3 家潛在客戶\n2. 完成已成交客戶的售後交接\n3. 產出 10 家 A+ 名單',
+      createdAt: createdAtOf(1)
     };
 
     data.companies = [c1, c2, c3];
@@ -269,9 +325,9 @@ const Seed = (() => {
     data.deals = [d1, d2, d3];
     data.activities = [a1, a2, a3];
     data.tasks = [t1, t2, t3];
-    data.dailyMetrics = [m1];
+    data.dailyMetrics = [m1, m2, m3];
 
-    return data;
+    return Store.normalize(data);
   };
 
   return { seedData };

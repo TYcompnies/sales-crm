@@ -73,7 +73,7 @@ const Pipeline = (() => {
       <div class="pipeline-card" data-stage="${deal.stage}" data-deal-id="${deal.id}">
         <div class="pipeline-card-title">${escapeHtml(deal.name)}</div>
         <div class="pipeline-card-meta">
-          ${escapeHtml(company?.name || '未綁定客戶')} · ${deal.prob}%
+          ${escapeHtml(company?.name || '未綁定客戶')} · ${deal.prob}% · 👤 ${escapeHtml(deal.owner || '—')}
           ${daysLeft !== null ? ` · ${daysLeft >= 0 ? `剩 ${daysLeft} 天` : `<span style="color:var(--danger);">逾期 ${Math.abs(daysLeft)} 天</span>`}` : ''}
         </div>
         <div>

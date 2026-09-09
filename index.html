@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0f172a">
-<title>作戰 CRM · 41大叔每日銷售戰報</title>
+<title>鈦沅CRM作戰 · 每日銷售戰報</title>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%8B%3C/text%3E%3C/svg%3E">
 </head>
@@ -15,8 +15,8 @@
   <div class="brand">
     <span class="brand-icon">🔋</span>
     <div>
-      <h1>作戰 CRM</h1>
-      <p class="brand-sub">41大叔 · 雲端同步版</p>
+      <h1>鈦沅CRM作戰</h1>
+      <p class="brand-sub">雲端同步版</p>
     </div>
   </div>
 
@@ -33,6 +33,11 @@
   </nav>
 
   <div class="topbar-right">
+    <button class="user-chip" id="btnUser" title="切換身份（我是哪個業務）">
+      <span class="user-avatar" id="userAvatar">👤</span>
+      <span id="userName">未登入</span>
+      <span class="user-caret">▾</span>
+    </button>
     <span class="sync-indicator" id="syncIndicator" title="同步狀態">
       <span class="sync-dot" id="syncDot"></span>
       <span id="syncStatus">本機</span>
@@ -99,6 +104,23 @@
           <button class="btn-secondary" id="btnCopyLink">📋 複製連結</button>
         </div>
         <p class="sync-note" id="linkNote"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============= 身份選擇 Modal ============= -->
+<div class="modal" id="profileModal">
+  <div class="modal-content modal-small">
+    <div class="modal-header">
+      <h2 id="profileModalTitle">👤 我是哪個業務？</h2>
+    </div>
+    <div class="modal-body">
+      <p class="sync-help">選擇你的身份後，<b>新增的客戶、聯絡人、商機、互動、任務都會自動掛上你的名字</b>，數據報表就能看出誰負責、誰推進。</p>
+      <div id="profileMemberList" class="profile-member-list"></div>
+      <div class="profile-add-row">
+        <input id="profileNewName" placeholder="輸入姓名（新業務）…" maxlength="12">
+        <button class="btn-primary" id="btnProfileCreate">＋ 建立並登入</button>
       </div>
     </div>
   </div>

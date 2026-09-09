@@ -92,11 +92,31 @@ const Analytics = (() => {
         return { ...c, dealCount: deals.length, dealAmount: deals.reduce((s, d) => s + (d.amount || 0), 0) };
       });
 
+    // === 5. 每日新增戰報（依 createdAt 本地日期分組：誰開發、進度到哪）===
+    const companyGroups = groupByCreatedDate(data.companies);
+    const contactGroups = groupByCreatedDate(data.contacts);
+    const dailyCompanyHtml = renderDailyCompanies(companyGroups, data);
+    const dailyContactHtml = renderDailyContacts(contactGroups, data);
+
     const html = `
       <div class="view-header">
         <div>
           <h2 class="view-title">🧠 高階管理視角</h2>
-          <p class="view-subtitle">銷售漏斗、成交週期、團隊績效對比 · 用於週會或月度策略調整</p>
+          <p class="view-subtitle">每日新增開發戰報、銷售漏斗、成交週期、團隊績效對比 · 用於週會或月度策略調整</p>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-title">📈 每日新增戰報 <span style="font-size:11px;color:var(--text-muted);font-weight:400;">每天開發了誰？由哪個業務負責？單子現在推進到哪？</span></div>
+        <div class="dashboard-row">
+          <div class="list-card">
+            <h3>🏢 每日新增公司（客戶開發進度）</h3>
+            ${dailyCompanyHtml}
+          </div>
+          <div class="list-card">
+            <h3>👤 每日新增聯絡人（人脈建立進度）</h3>
+            ${dailyContactHtml}
+          </div>
         </div>
       </div>
 
@@ -271,6 +291,100 @@ const Analytics = (() => {
     `;
 
     document.getElementById('mainView').innerHTML = html;
+  };
+
+  // ===== 每日新增戰報 helpers =====
+
+  // 本地日期字串（避免 UTC 跳日）
+  const localDateStr = (offset = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+
+  const dayLabel = (dstr) => {
+    if (!dstr || dstr === '日期不明') return '日期不明';
+    if (dstr === localDateStr(0)) return `今天 ${dstr.slice(5)}`;
+    if (dstr === localDateStr(1)) return `昨天 ${dstr.slice(5)}`;
+    if (dstr === localDateStr(2)) return `前天 ${dstr.slice(5)}`;
+    return `${Number(dstr.slice(5, 7))}/${Number(dstr.slice(8, 10))}`;
+  };
+
+  // 依 createdAt 前 10 字元（本地日期）分組，新→舊，最多顯示 5 天
+  const groupByCreatedDate = (arr) => {
+    const map = new Map();
+    arr.forEach(x => {
+      const d = String(x.createdAt || '').slice(0, 10) || '日期不明';
+      if (!map.has(d)) map.set(d, []);
+      map.get(d).push(x);
+    });
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 5);
+  };
+
+  const stageRank = (key) => Store.PIPELINE_STAGES.findIndex(s => s.key === key);
+
+  // 該客戶目前階段最前面的商機（不含失敗單）
+  const topDealOf = (data, companyId) =>
+    data.deals
+      .filter(d => d.companyId === companyId && d.stage !== 'lost')
+      .sort((a, b) => stageRank(b.stage) - stageRank(a.stage))[0];
+
+  const renderDailyCompanies = (groups, data) => {
+    if (groups.length === 0) {
+      return '<div class="empty" style="padding:24px 10px;"><div class="empty-icon">🏢</div><div class="empty-text">尚無客戶資料</div></div>';
+    }
+    return groups.map(([dstr, list]) => `
+      <div class="daily-group">
+        <div class="daily-group-date">📅 ${dayLabel(dstr)} <span class="badge">＋${list.length}</span></div>
+        ${list.slice(0, 6).map(c => {
+          const td = topDealOf(data, c.id);
+          return `
+            <div class="list-item">
+              <div class="list-item-title">
+                ${escapeHtml(c.name)}
+                ${td ? `<span class="stage-badge stage-${td.stage}" style="margin-left:6px;">${escapeHtml(Store.STAGE_MAP[td.stage].name)}</span>` : ''}
+              </div>
+              <div class="list-item-meta">
+                <span class="owner-tag">👤 ${escapeHtml(c.owner || '未指派')}</span>
+                ${escapeHtml(c.industry || '—')}${c.region ? ' · ' + escapeHtml(c.region) : ''}
+                ${td ? ` · 💰 <b style="color:var(--success);">NT$ ${(td.amount || 0).toLocaleString()}</b>` : ''}
+              </div>
+              ${td ? '' : '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">尚未建立商機，待開發</div>'}
+            </div>
+          `;
+        }).join('')}
+        ${list.length > 6 ? `<div class="muted" style="padding:6px 14px;font-size:11px;">… 當日另有 ${list.length - 6} 筆</div>` : ''}
+      </div>
+    `).join('');
+  };
+
+  const renderDailyContacts = (groups, data) => {
+    if (groups.length === 0) {
+      return '<div class="empty" style="padding:24px 10px;"><div class="empty-icon">👤</div><div class="empty-text">尚無聯絡人資料</div></div>';
+    }
+    return groups.map(([dstr, list]) => `
+      <div class="daily-group">
+        <div class="daily-group-date">📅 ${dayLabel(dstr)} <span class="badge">＋${list.length}</span></div>
+        ${list.slice(0, 6).map(ct => {
+          const co = data.companies.find(x => x.id === ct.companyId);
+          const td = co ? topDealOf(data, co.id) : null;
+          return `
+            <div class="list-item">
+              <div class="list-item-title">
+                ${escapeHtml(ct.name)}
+                ${ct.position ? `<span style="color:var(--text-muted);font-weight:400;font-size:12px;">${escapeHtml(ct.position)}</span>` : ''}
+              </div>
+              <div class="list-item-meta">
+                <span class="owner-tag">👤 ${escapeHtml(ct.owner || '未指派')}</span>
+                ${escapeHtml(co?.name || '未綁定客戶')}
+                ${td ? `<span class="stage-badge stage-${td.stage}" style="margin-left:6px;">${escapeHtml(Store.STAGE_MAP[td.stage].name)}</span>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+        ${list.length > 6 ? `<div class="muted" style="padding:6px 14px;font-size:11px;">… 當日另有 ${list.length - 6} 筆</div>` : ''}
+      </div>
+    `).join('');
   };
 
   const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({

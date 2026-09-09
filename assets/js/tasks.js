@@ -25,6 +25,10 @@ const Tasks = (() => {
       </div>
 
       <div class="filter-bar">
+        <select id="filterOwner">
+          <option value="">全部負責業務</option>
+          ${Store.teamMembers(data).map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('')}
+        </select>
         <select id="filterPriority">
           <option value="">全部優先級</option>
           <option value="P1">P1 緊急</option>
@@ -128,11 +132,13 @@ const Tasks = (() => {
 
   const bindFilters = () => {
     const apply = () => {
+      const owner = document.getElementById('filterOwner').value;
       const priority = document.getElementById('filterPriority').value;
       const status = document.getElementById('filterStatus').value;
       const search = document.getElementById('filterSearch').value.toLowerCase();
       const data = Store.load();
       let list = [...data.tasks];
+      if (owner) list = list.filter(t => t.owner === owner);
       if (priority) list = list.filter(t => t.priority === priority);
       if (status === 'open') list = list.filter(t => t.status !== 'completed');
       else if (status === 'completed') list = list.filter(t => t.status === 'completed');
@@ -140,6 +146,7 @@ const Tasks = (() => {
       document.getElementById('taskList').innerHTML = renderTasks(list, data);
       bindEvents();
     };
+    document.getElementById('filterOwner').addEventListener('change', apply);
     document.getElementById('filterPriority').addEventListener('change', apply);
     document.getElementById('filterStatus').addEventListener('change', apply);
     document.getElementById('filterSearch').addEventListener('input', apply);
@@ -178,7 +185,9 @@ const Tasks = (() => {
         </div>
         <div class="form-field">
           <label>責任人</label>
-          <input name="owner" value="${escapeHtml(task?.owner || '林業務')}">
+          <select name="owner">
+            ${Store.ownerOptionsHtml(data, task?.owner || Store.me())}
+          </select>
         </div>
         <div class="form-field">
           <label>截止日期</label>
@@ -228,6 +237,7 @@ const Tasks = (() => {
     const form = document.getElementById('taskForm');
     if (!form.checkValidity()) { form.reportValidity(); return; }
     const obj = Object.fromEntries(new FormData(form).entries());
+    if (!obj.owner) obj.owner = Store.me() || '未指派';
 
     const data = Store.load();
     if (taskId) {
@@ -280,7 +290,7 @@ const Tasks = (() => {
       const existing = data.tasks.filter(t => t.dealId === deal.id && t.title.includes('[自動跟進]'));
       if (existing.length > 0) return;
 
-      const owner = deal.owner || '林業務';
+      const owner = deal.owner || Store.me() || '未指派';
       const seq = [
         { day: 1, title: '發送初次感謝信 + 案例分享', priority: 'P2' },
         { day: 3, title: '致電詢問是否收到資料，挖掘潛在顧慮', priority: 'P2' },

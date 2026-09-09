@@ -24,6 +24,10 @@ const Contacts = (() => {
           <option value="">全部客戶</option>
           ${data.companies.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
         </select>
+        <select id="filterOwner">
+          <option value="">全部負責業務</option>
+          ${Store.teamMembers(data).map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('')}
+        </select>
         <select id="filterInfluence">
           <option value="">全部影響力</option>
           <option>關鍵決策者</option>
@@ -41,6 +45,7 @@ const Contacts = (() => {
               <th>客戶</th>
               <th>職位</th>
               <th>影響力</th>
+              <th>負責業務</th>
               <th>手機</th>
               <th>Email</th>
               <th>Line</th>
@@ -72,6 +77,7 @@ const Contacts = (() => {
           <td>${escapeHtml(company?.name || '未綁定')}</td>
           <td>${escapeHtml(c.position || '—')}</td>
           <td>${c.influence ? `<span class="tag ${influenceColor}">${escapeHtml(c.influence)}</span>` : '—'}</td>
+          <td>${c.owner ? `<span class="owner-tag">👤 ${escapeHtml(c.owner)}</span>` : '<span class="muted">—</span>'}</td>
           <td>${escapeHtml(c.phone || '—')}</td>
           <td style="font-size:12px;">${escapeHtml(c.email || '—')}</td>
           <td>${escapeHtml(c.line || '—')}</td>
@@ -103,11 +109,13 @@ const Contacts = (() => {
   const bindFilters = () => {
     const apply = () => {
       const companyId = document.getElementById('filterCompany').value;
+      const owner = document.getElementById('filterOwner').value;
       const influence = document.getElementById('filterInfluence').value;
       const search = document.getElementById('filterSearch').value.toLowerCase();
       const data = Store.load();
       let list = [...data.contacts];
       if (companyId) list = list.filter(c => c.companyId === companyId);
+      if (owner) list = list.filter(c => c.owner === owner);
       if (influence) list = list.filter(c => c.influence === influence);
       if (search) {
         list = list.filter(c =>
@@ -118,6 +126,7 @@ const Contacts = (() => {
       bindEvents();
     };
     document.getElementById('filterCompany').addEventListener('change', apply);
+    document.getElementById('filterOwner').addEventListener('change', apply);
     document.getElementById('filterInfluence').addEventListener('change', apply);
     document.getElementById('filterSearch').addEventListener('input', apply);
   };
@@ -151,6 +160,12 @@ const Contacts = (() => {
             <option ${contact?.influence === '關鍵決策者' ? 'selected' : ''}>關鍵決策者</option>
             <option ${contact?.influence === '使用者' ? 'selected' : ''}>使用者</option>
             <option ${contact?.influence === '守門人' ? 'selected' : ''}>守門人</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>負責業務</label>
+          <select name="owner">
+            ${Store.ownerOptionsHtml(data, contact?.owner || Store.me())}
           </select>
         </div>
         <div class="form-field">
@@ -202,6 +217,7 @@ const Contacts = (() => {
     const form = document.getElementById('contactForm');
     if (!form.checkValidity()) { form.reportValidity(); return; }
     const obj = Object.fromEntries(new FormData(form).entries());
+    if (!obj.owner) obj.owner = Store.me() || '未指派';
 
     const data = Store.load();
     if (contactId) {

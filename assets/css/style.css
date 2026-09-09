@@ -1116,3 +1116,171 @@ input, textarea, select { font-family: inherit; outline: none; }
   color: var(--success);
   font-variant-numeric: tabular-nums;
 }
+
+/* ============= 多業務身份 UI（v2） ============= */
+
+/* 右上角身份 chip */
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font-size: 13px;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.user-chip:hover { background: var(--bg-hover); border-color: var(--accent); }
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-caret { font-size: 10px; color: var(--text-muted); }
+
+/* 我的 / 團隊 切換 */
+.seg {
+  display: inline-flex;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 2px;
+}
+.seg-btn {
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  white-space: nowrap;
+  transition: all .2s;
+}
+.seg-btn:hover { color: var(--text-primary); }
+.seg-btn.active { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
+
+/* 身份選擇 Modal */
+.profile-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.profile-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: all .2s;
+  width: 100%;
+}
+.profile-member:hover { background: var(--bg-hover); border-color: var(--accent); }
+.profile-member.active { border-color: var(--accent); background: rgba(59,130,246,.12); }
+.profile-member .pm-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.profile-member .pm-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.profile-member .pm-sub { font-size: 11px; color: var(--text-muted); }
+.profile-member .pm-check { margin-left: auto; color: var(--success); font-size: 16px; }
+.profile-add-row { display: flex; gap: 8px; margin-top: 8px; }
+.profile-add-row input {
+  flex: 1;
+  padding: 9px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.profile-add-row input:focus { border-color: var(--accent); }
+
+/* 業務標籤（列表 owner 顯示） */
+.owner-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(139,92,246,.16);
+  color: #c4b5fd;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 引導橫幅（尚未設定身份） */
+.guide-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, rgba(59,130,246,.16), rgba(139,92,246,.12));
+  border: 1px solid rgba(59,130,246,.35);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+}
+.guide-text b { display: block; margin-bottom: 2px; color: var(--text-primary); }
+.guide-text span { font-size: 12px; color: var(--text-secondary); }
+
+/* 每日新增戰報群組 */
+.daily-group { margin-bottom: 10px; }
+.daily-group-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 2px;
+}
+.daily-group-date .badge {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* 窄螢幕：topbar 允許換行 */
+@media (max-width: 1024px) {
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .nav-tabs { order: 3; flex-basis: 100%; }
+}

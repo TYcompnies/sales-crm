@@ -27,8 +27,8 @@ const Deals = (() => {
           ${Store.PIPELINE_STAGES.map(s => `<option value="${s.key}">${s.name}</option>`).join('')}
         </select>
         <select id="filterOwner">
-          <option value="">全部負責人</option>
-          ${[...new Set(data.deals.map(d => d.owner).filter(Boolean))].map(o => `<option value="${o}">${escapeHtml(o)}</option>`).join('')}
+          <option value="">全部負責業務</option>
+          ${Store.teamMembers(data).map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('')}
         </select>
         <input type="text" id="filterSearch" placeholder="搜尋商機名稱 / 客戶 / 產品…">
         <button class="btn-secondary" id="btnClearFilter">清除</button>
@@ -45,7 +45,7 @@ const Deals = (() => {
               <th class="num">金額</th>
               <th>機率</th>
               <th>截止日</th>
-              <th>負責人</th>
+              <th>負責業務</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -211,7 +211,9 @@ const Deals = (() => {
 
         <div class="form-field">
           <label>負責業務</label>
-          <input name="owner" value="${escapeHtml(deal?.owner || '林業務')}">
+          <select name="owner">
+            ${Store.ownerOptionsHtml(data, deal?.owner || Store.me())}
+          </select>
         </div>
 
         <div class="form-field full">
@@ -283,6 +285,7 @@ const Deals = (() => {
     }
     const fd = new FormData(form);
     const obj = Object.fromEntries(fd.entries());
+    if (!obj.owner) obj.owner = Store.me() || '未指派';
 
     const data = Store.load();
     // 自動同步機率（基於階段）

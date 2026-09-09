@@ -5,7 +5,9 @@
 
 const Store = (() => {
   const KEY = 'crm_data_v1';
-  const SCHEMA_VERSION = 1;
+  const PROFILE_KEY = 'crm_profile_v1';   // 本機使用者身份（不同步，綁裝置）
+  const DASH_MODE_KEY = 'crm_dash_mode';  // 戰報範圍：mine / team（不同步）
+  const SCHEMA_VERSION = 2;
 
   // 預設資料結構
   const defaultData = () => ({
@@ -19,9 +21,66 @@ const Store = (() => {
     meta: {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      owner: '41大叔'
+      owner: '鈦沅CRM',
+      team: []    // 業務成員清單 [{id, name}]
     }
   });
+
+  const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // 資料遷移 / 補齊（v1 → v2）
+  // 確保 meta.team 存在、每個 entity 都有 owner
+  const normalize = (data) => {
+    data.meta = { ...defaultData().meta, ...(data.meta || {}) };
+    if (!Array.isArray(data.meta.team)) data.meta.team = [];
+
+    const dealOwner = (dealId) => {
+      const d = data.deals.find(x => x.id === dealId);
+      return d?.owner || '';
+    };
+    const contactCompanyId = (contactId) => {
+      const c = data.contacts.find(x => x.id === contactId);
+      return c?.companyId || '';
+    };
+    const companyOwnerOf = (companyId) => {
+      const c = data.companies.find(x => x.id === companyId);
+      return c?.owner || '';
+    };
+
+    // 補 owner（避免覆蓋既有值）
+    (data.deals || []).forEach(d => { if (!d.owner) d.owner = '未指派'; });
+    (data.companies || []).forEach(c => { if (!c.owner) c.owner = '未指派'; });
+    (data.contacts || []).forEach(ct => {
+      if (!ct.owner) {
+        // 從同客戶的商機 owner 繼承
+        const owners = [...new Set(data.deals.filter(d => d.companyId === ct.companyId).map(d => d.owner).filter(Boolean))];
+        ct.owner = owners[0] || companyOwnerOf(ct.companyId) || '未指派';
+      }
+    });
+    (data.activities || []).forEach(a => {
+      if (!a.owner) a.owner = dealOwner(a.dealId) || companyOwnerOf(contactCompanyId(a.contactId)) || '未指派';
+    });
+    (data.tasks || []).forEach(t => { if (!t.owner) t.owner = dealOwner(t.dealId) || '未指派'; });
+    (data.dailyMetrics || []).forEach(m => { if (!m.owner) m.owner = '未指派'; });
+
+    // 重建 team：收集所有出現過的 owner 名稱（排除「未指派」）
+    const names = [...new Set([
+      ...data.companies.map(c => c.owner),
+      ...data.contacts.map(c => c.owner),
+      ...data.deals.map(d => d.owner),
+      ...data.activities.map(a => a.owner),
+      ...data.tasks.map(t => t.owner),
+      ...data.dailyMetrics.map(m => m.owner)
+    ].filter(n => n && n !== '未指派'))];
+    names.forEach(name => {
+      if (!data.meta.team.some(m => m.name === name)) {
+        data.meta.team.push({ id: uid('mb'), name });
+      }
+    });
+
+    data.schemaVersion = SCHEMA_VERSION;
+    return data;
+  };
 
   // 讀取資料
   const load = () => {
@@ -31,14 +90,15 @@ const Store = (() => {
       const parsed = JSON.parse(raw);
       // 確保所有欄位都存在
       const data = defaultData();
-      return {
+      const merged = {
         ...data,
         ...parsed,
         meta: { ...data.meta, ...(parsed.meta || {}) }
       };
+      return normalize(merged);
     } catch (e) {
       console.error('Store load error:', e);
-      return defaultData();
+      return normalize(defaultData());
     }
   };
 
@@ -81,8 +141,53 @@ const Store = (() => {
   // 完整替換資料（用於匯入）
   const replace = (data) => {
     const merged = { ...defaultData(), ...data, meta: { ...defaultData().meta, ...(data.meta || {}) } };
-    saveNow(merged);
-    return merged;
+    const norm = normalize(merged);
+    saveNow(norm);
+    return norm;
+  };
+
+  // ===== 本機身份（Profile）=====
+  const getProfile = () => {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); }
+    catch (e) { return null; }
+  };
+  const setProfile = (p) => {
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
+    catch (e) { console.error('setProfile error', e); }
+  };
+
+  // ===== 戰報範圍模式 =====
+  const getDashMode = () => localStorage.getItem(DASH_MODE_KEY) || 'mine';
+  const setDashMode = (mode) => localStorage.setItem(DASH_MODE_KEY, mode);
+
+  // ===== 團隊成員管理 =====
+  // 回傳業務成員（含「未指派」偽成員做顯示用，不參與選單）
+  const teamMembers = (data) => data.meta?.team || [];
+  // 確保姓名在團隊清單中，回傳該成員
+  const ensureMember = (data, name) => {
+    if (!name) return null;
+    let m = (data.meta.team || []).find(x => x.name === name);
+    if (!m) {
+      m = { id: uid('mb'), name };
+      data.meta.team.push(m);
+    }
+    return m;
+  };
+  // 目前使用者名稱（無 Profile 回空字串）
+  const me = () => getProfile()?.name || '';
+  // owner 下拉選單 HTML：保留既有值（舊資料/未指派），團隊成員依 meta.team
+  const ownerOptionsHtml = (data, current) => {
+    const team = teamMembers(data);
+    const cur = current || '';
+    const out = [];
+    if (cur && !team.some(m => m.name === cur)) {
+      out.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
+    }
+    if (!cur) out.push('<option value="" selected>— 選擇業務 —</option>');
+    team.forEach(m => {
+      out.push(`<option value="${esc(m.name)}"${cur === m.name ? ' selected' : ''}>${esc(m.name)}</option>`);
+    });
+    return out.join('');
   };
 
   // ID 生成
@@ -154,6 +259,7 @@ const Store = (() => {
     reset,
     replace,
     uid,
+    normalize,
     PIPELINE_STAGES,
     STAGE_MAP,
     calcHeat,
@@ -161,7 +267,15 @@ const Store = (() => {
     dealsByCompany,
     activitiesByDeal,
     tasksByDeal,
-    dealsByHeat
+    dealsByHeat,
+    getProfile,
+    setProfile,
+    getDashMode,
+    setDashMode,
+    teamMembers,
+    ensureMember,
+    me,
+    ownerOptionsHtml
   };
 })();
 

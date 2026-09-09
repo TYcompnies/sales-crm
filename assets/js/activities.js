@@ -20,6 +20,10 @@ const Activities = (() => {
       </div>
 
       <div class="filter-bar">
+        <select id="filterOwner">
+          <option value="">全部負責業務</option>
+          ${Store.teamMembers(data).map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('')}
+        </select>
         <select id="filterDeal">
           <option value="">全部商機</option>
           ${data.deals.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('')}
@@ -67,6 +71,7 @@ const Activities = (() => {
             </div>
             <div class="timeline-meta">
               對象：${escapeHtml(contact?.name || '—')}（${escapeHtml(contact?.position || '—')}）
+              ${a.owner ? ` · 👤 ${escapeHtml(a.owner)}` : ''}
               ${a.competitor ? ` · 競爭對手：${escapeHtml(a.competitor)}` : ''}
             </div>
             <div class="timeline-content">${escapeHtml(a.summary || '')}</div>
@@ -96,12 +101,14 @@ const Activities = (() => {
 
   const bindFilters = () => {
     const apply = () => {
+      const owner = document.getElementById('filterOwner').value;
       const dealId = document.getElementById('filterDeal').value;
       const method = document.getElementById('filterMethod').value;
       const from = document.getElementById('filterFrom').value;
       const to = document.getElementById('filterTo').value;
       const data = Store.load();
       let list = [...data.activities];
+      if (owner) list = list.filter(a => a.owner === owner);
       if (dealId) list = list.filter(a => a.dealId === dealId);
       if (method) list = list.filter(a => a.method === method);
       if (from) list = list.filter(a => a.date >= from);
@@ -110,6 +117,7 @@ const Activities = (() => {
       document.getElementById('activityTimeline').innerHTML = renderTimeline(list, data);
       bindEvents();
     };
+    document.getElementById('filterOwner').addEventListener('change', apply);
     document.getElementById('filterDeal').addEventListener('change', apply);
     document.getElementById('filterMethod').addEventListener('change', apply);
     document.getElementById('filterFrom').addEventListener('change', apply);
@@ -154,6 +162,12 @@ const Activities = (() => {
           <label>互動方式</label>
           <select name="method">
             ${['當面拜訪', '電話', '視訊會議', 'Email', 'Line', 'WeChat', '其他'].map(m => `<option ${act?.method === m ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>記錄人（負責業務）</label>
+          <select name="owner">
+            ${Store.ownerOptionsHtml(data, act?.owner || Store.me())}
           </select>
         </div>
         <div class="form-field">
@@ -225,6 +239,7 @@ const Activities = (() => {
     const form = document.getElementById('activityForm');
     if (!form.checkValidity()) { form.reportValidity(); return; }
     const obj = Object.fromEntries(new FormData(form).entries());
+    if (!obj.owner) obj.owner = Store.me() || '未指派';
 
     const data = Store.load();
     if (activityId) {

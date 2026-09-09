@@ -19,6 +19,14 @@ const Companies = (() => {
         </div>
       </div>
 
+      <div class="filter-bar">
+        <select id="filterOwner">
+          <option value="">全部負責業務</option>
+          ${Store.teamMembers(data).map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('')}
+        </select>
+        <input type="text" id="filterSearch" placeholder="搜尋客戶名稱 / 統編 / 行業…">
+      </div>
+
       <div class="table-wrap">
         <table class="table">
           <thead>
@@ -29,6 +37,7 @@ const Companies = (() => {
               <th class="num">員工人數</th>
               <th>區域</th>
               <th>客戶來源</th>
+              <th>負責業務</th>
               <th>標籤</th>
               <th class="num">商機數</th>
               <th class="num">總金額</th>
@@ -46,6 +55,26 @@ const Companies = (() => {
 
     document.getElementById('mainView').innerHTML = html;
     bindEvents();
+    bindFilters();
+  };
+
+  const bindFilters = () => {
+    const apply = () => {
+      const owner = document.getElementById('filterOwner').value;
+      const search = document.getElementById('filterSearch').value.toLowerCase();
+      const data = Store.load();
+      let list = [...data.companies];
+      if (owner) list = list.filter(c => c.owner === owner);
+      if (search) {
+        list = list.filter(c =>
+          [c.name, c.taxId, c.industry, c.region].some(s => s && s.toLowerCase().includes(search))
+        );
+      }
+      document.getElementById('companiesTbody').innerHTML = renderRows(list, data);
+      bindEvents();
+    };
+    document.getElementById('filterOwner').addEventListener('change', apply);
+    document.getElementById('filterSearch').addEventListener('input', apply);
   };
 
   const renderRows = (companies, data) => {
@@ -60,6 +89,7 @@ const Companies = (() => {
           <td class="num">${c.employeeCount ? c.employeeCount.toLocaleString() : '—'}</td>
           <td>${escapeHtml(c.region || '—')}</td>
           <td>${escapeHtml(c.source || '—')}</td>
+          <td>${c.owner ? `<span class="owner-tag">👤 ${escapeHtml(c.owner)}</span>` : '<span class="muted">—</span>'}</td>
           <td>${(c.tags || []).map(t => `<span class="tag ${t === 'A+' ? 'a-plus' : ''}">${escapeHtml(t)}</span>`).join('')}</td>
           <td class="num">${deals.length}</td>
           <td class="num"><b style="color:var(--success);">${(totalAmount / 10000).toFixed(0)}萬</b></td>
@@ -107,6 +137,12 @@ const Companies = (() => {
           <select name="source">
             <option value="">—</option>
             ${['業務開發', '客戶介紹', '舊客戶回流', '行銷活動', '網站詢價', '陌生拜訪'].map(s => `<option ${company?.source === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field">
+          <label>負責業務</label>
+          <select name="owner">
+            ${Store.ownerOptionsHtml(data, company?.owner || Store.me())}
           </select>
         </div>
         <div class="form-field">
@@ -171,6 +207,7 @@ const Companies = (() => {
     }
     const fd = new FormData(form);
     const obj = Object.fromEntries(fd.entries());
+    if (!obj.owner) obj.owner = Store.me() || '未指派';
 
     const data = Store.load();
     if (companyId) {
