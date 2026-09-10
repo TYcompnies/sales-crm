@@ -15,6 +15,11 @@ const Seed = (() => {
   const today = () => localDate(0);
 
   const seedData = () => {
+    // 確定性 id：兩台裝置各自首次播種時會產生「完全相同」的資料，
+    // 雲端合併後不會出現重複的範例客戶/商機（若用隨機 uid 就會變兩份）
+    let _n = 0;
+    const sid = (prefix) => `seed_${prefix}_${++_n}`;
+
     const data = {
       schemaVersion: 2,
       companies: [],
@@ -38,7 +43,7 @@ const Seed = (() => {
 
     // ===== 1. 智邦科技（林建宏，9/9 新增）=====
     const c1 = {
-      id: Store.uid('co'),
+      id: sid('co'),
       name: '智邦科技股份有限公司',
       taxId: '12345678',
       industry: '網通設備製造業',
@@ -53,7 +58,7 @@ const Seed = (() => {
       createdAt: createdAtOf(0)
     };
     const ct1 = {
-      id: Store.uid('ct'),
+      id: sid('ct'),
       companyId: c1.id,
       name: '陳建宏',
       position: '技術長',
@@ -67,7 +72,7 @@ const Seed = (() => {
       createdAt: createdAtOf(0)
     };
     const d1 = {
-      id: Store.uid('dl'),
+      id: sid('dl'),
       companyId: c1.id,
       contactId: ct1.id,
       name: '5G基站散熱模組',
@@ -90,7 +95,7 @@ const Seed = (() => {
       createdAt: createdAtOf(0)
     };
     const a1 = {
-      id: Store.uid('act'),
+      id: sid('act'),
       dealId: d1.id,
       contactId: ct1.id,
       owner: '林建宏',
@@ -104,7 +109,7 @@ const Seed = (() => {
       createdAt: createdAtOf(0)
     };
     const t1 = {
-      id: Store.uid('tk'),
+      id: sid('tk'),
       dealId: d1.id,
       title: '準備保固成本分析與議價對策',
       owner: '林建宏',
@@ -116,7 +121,7 @@ const Seed = (() => {
 
     // ===== 2. 台亞半導體（林建宏，9/8 新增）=====
     const c2 = {
-      id: Store.uid('co'),
+      id: sid('co'),
       name: '台亞半導體股份有限公司',
       taxId: '87654321',
       industry: '晶圓測試',
@@ -131,7 +136,7 @@ const Seed = (() => {
       createdAt: createdAtOf(1)
     };
     const ct2 = {
-      id: Store.uid('ct'),
+      id: sid('ct'),
       companyId: c2.id,
       name: '張美玲',
       position: '採購經理',
@@ -145,7 +150,7 @@ const Seed = (() => {
       createdAt: createdAtOf(1)
     };
     const d2 = {
-      id: Store.uid('dl'),
+      id: sid('dl'),
       companyId: c2.id,
       contactId: ct2.id,
       name: '測試機台校準軟體升級',
@@ -168,7 +173,7 @@ const Seed = (() => {
       createdAt: createdAtOf(1)
     };
     const a2 = {
-      id: Store.uid('act'),
+      id: sid('act'),
       dealId: d2.id,
       contactId: ct2.id,
       owner: '林建宏',
@@ -182,7 +187,7 @@ const Seed = (() => {
       createdAt: createdAtOf(1)
     };
     const t2 = {
-      id: Store.uid('tk'),
+      id: sid('tk'),
       dealId: d2.id,
       title: '向主管申請專案折扣',
       owner: '林建宏',
@@ -194,7 +199,7 @@ const Seed = (() => {
 
     // ===== 3. 樂森餐飲（張雅婷，9/7 新增）=====
     const c3 = {
-      id: Store.uid('co'),
+      id: sid('co'),
       name: '樂森餐飲連鎖集團',
       taxId: '11223344',
       industry: '餐飲服務業',
@@ -209,7 +214,7 @@ const Seed = (() => {
       createdAt: createdAtOf(2)
     };
     const ct3 = {
-      id: Store.uid('ct'),
+      id: sid('ct'),
       companyId: c3.id,
       name: '王俊傑',
       position: '資訊長',
@@ -223,7 +228,7 @@ const Seed = (() => {
       createdAt: createdAtOf(2)
     };
     const d3 = {
-      id: Store.uid('dl'),
+      id: sid('dl'),
       companyId: c3.id,
       contactId: ct3.id,
       name: '門市POS系統雲端化',
@@ -246,7 +251,7 @@ const Seed = (() => {
       createdAt: createdAtOf(2)
     };
     const a3 = {
-      id: Store.uid('act'),
+      id: sid('act'),
       dealId: d3.id,
       contactId: ct3.id,
       owner: '張雅婷',
@@ -260,7 +265,7 @@ const Seed = (() => {
       createdAt: createdAtOf(2)
     };
     const t3 = {
-      id: Store.uid('tk'),
+      id: sid('tk'),
       dealId: d3.id,
       title: '提供斷線續傳技術白皮書',
       owner: '張雅婷',
@@ -272,7 +277,7 @@ const Seed = (() => {
 
     // ===== 每日量化指標（同一天可多位業務各自填寫）=====
     const m1 = {   // 9/9 林建宏
-      id: Store.uid('mt'),
+      id: sid('mt'),
       date: today(),
       owner: '林建宏',
       contactCount: 8,
@@ -288,7 +293,7 @@ const Seed = (() => {
       createdAt: createdAtOf(0)
     };
     const m2 = {   // 9/9 張雅婷
-      id: Store.uid('mt'),
+      id: sid('mt'),
       date: today(),
       owner: '張雅婷',
       contactCount: 6,
@@ -304,7 +309,7 @@ const Seed = (() => {
       createdAt: createdAtOf(0)
     };
     const m3 = {   // 9/8 陳冠宇
-      id: Store.uid('mt'),
+      id: sid('mt'),
       date: localDate(1),
       owner: '陳冠宇',
       contactCount: 10,

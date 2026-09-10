@@ -37,9 +37,12 @@ const App = (() => {
     bindNavTabs();
     bindGlobalEvents();
 
-    // 4. 初始化同步
+    // 4. 初始化同步（同源多 tab + 雲端自動同步）
     Sync.init();
     Sync.updateIndicator();
+    Cloud.init();
+    const wsIdEl = document.getElementById('cloudWsId');
+    if (wsIdEl) wsIdEl.textContent = Cloud.WORKSPACE;
 
     // 5. 更新右上角身份顯示
     renderProfileUI();
@@ -105,6 +108,10 @@ const App = (() => {
     });
     document.getElementById('btnGenLink').addEventListener('click', Sync.generateShareLink);
     document.getElementById('btnCopyLink').addEventListener('click', Sync.copyShareLink);
+
+    // 雲端自動同步
+    document.getElementById('btnCloudPull').addEventListener('click', () => Cloud.pull());
+    document.getElementById('btnCloudReconnect').addEventListener('click', () => Cloud.reconnect());
 
     // 身份選擇（多業務）
     document.getElementById('btnUser').addEventListener('click', openProfileModal);

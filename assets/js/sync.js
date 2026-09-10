@@ -61,8 +61,9 @@ const Sync = (() => {
     }
   };
 
-  // 更新同步狀態指示器
+  // 更新同步狀態指示器（雲端同步啟用時，統一由 Cloud 顯示真實連線狀態）
   const updateIndicator = (status) => {
+    if (window.Cloud && typeof Cloud.renderStatus === 'function') { Cloud.renderStatus(); return; }
     const indicator = document.getElementById('syncIndicator');
     const statusEl = document.getElementById('syncStatus');
     if (!indicator || !statusEl) return;

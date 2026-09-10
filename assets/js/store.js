@@ -23,9 +23,13 @@ const Store = (() => {
       updatedAt: new Date().toISOString(),
       owner: '鈦沅CRM',
       team: [],           // 業務成員清單 [{id, name}]
-      removedMembers: []  // 已刪除的業務名稱（防止 normalize 從其名下資料 owner 自動復活）
+      removedMembers: [], // 已刪除的業務名稱（防止 normalize 從其名下資料 owner 自動復活）
+      tombstones: {}      // 已刪除實體 { 實體id: 刪除時間(ms) } — 雲端合併時防止已刪資料被別台裝置復活
     }
   });
+
+  // 會被雲端同步合併的資料集合
+  const COLLECTIONS = ['companies', 'contacts', 'deals', 'activities', 'tasks', 'dailyMetrics'];
 
   const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -79,7 +83,8 @@ const Store = (() => {
     ].filter(n => n && n !== '未指派'))];
     names.forEach(name => {
       if (!removed.includes(name) && !data.meta.team.some(m => m.name === name)) {
-        data.meta.team.push({ id: uid('mb'), name });
+        // 用確定性 id（不隨機）→ 雲端合併才具冪等性，不會因 id 不同而反覆回推
+        data.meta.team.push({ id: 'mb_' + name, name });
       }
     });
 
@@ -100,7 +105,9 @@ const Store = (() => {
         ...parsed,
         meta: { ...data.meta, ...(parsed.meta || {}) }
       };
-      return normalize(merged);
+      const norm = normalize(merged);
+      if (!_snap) _rebuildSnap(norm); // 首次載入建立快照基準（之後只由 save / applyRemote 更新）
+      return norm;
     } catch (e) {
       console.error('Store load error:', e);
       return normalize(defaultData());
@@ -113,12 +120,14 @@ const Store = (() => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
+        _stampChanges(data);                 // 為有變動的實體蓋 updatedAt / 記錄刪除墓碑
         data.meta.updatedAt = new Date().toISOString();
         localStorage.setItem(KEY, JSON.stringify(data));
         // 通知其他 tab（同源）
         if (!opts.silent) {
           window.dispatchEvent(new CustomEvent('crm:dataChanged', { detail: data }));
         }
+        if (window.Cloud) Cloud.push(data);  // 排程推送雲端
       } catch (e) {
         console.error('Store save error:', e);
         App.toast('儲存失敗：' + e.message, 'error');
@@ -129,9 +138,11 @@ const Store = (() => {
   // 立即儲存（同步用）
   const saveNow = (data) => {
     try {
+      _stampChanges(data);
       data.meta.updatedAt = new Date().toISOString();
       localStorage.setItem(KEY, JSON.stringify(data));
       window.dispatchEvent(new CustomEvent('crm:dataChanged', { detail: data }));
+      if (window.Cloud) Cloud.push(data);
     } catch (e) {
       console.error('Store saveNow error:', e);
     }
@@ -148,6 +159,137 @@ const Store = (() => {
     const merged = { ...defaultData(), ...data, meta: { ...defaultData().meta, ...(data.meta || {}) } };
     const norm = normalize(merged);
     saveNow(norm);
+    return norm;
+  };
+
+  // ===== 雲端同步支援：變更追蹤 / 刪除墓碑 / 雙向合併 =====
+  const MAX_TOMBSTONES = 2000;
+
+  // 上次落庫快照 { 集合名: Map(實體id -> JSON字串) }，用來判斷「哪些實體被改過 / 被刪掉」
+  let _snap = null;
+
+  const _rebuildSnap = (data) => {
+    const next = {};
+    COLLECTIONS.forEach((col) => {
+      const m = new Map();
+      (data[col] || []).forEach((e) => { if (e && e.id) m.set(e.id, JSON.stringify(e)); });
+      next[col] = m;
+    });
+    _snap = next;
+  };
+
+  // 為「內容有變動」的實體蓋上 updatedAt；把消失的實體記入墓碑（deletion tombstone）
+  const _stampChanges = (data) => {
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.now();
+    const tombstones = data.meta.tombstones || (data.meta.tombstones = {});
+    const next = {};
+    COLLECTIONS.forEach((col) => {
+      const m = new Map();
+      (data[col] || []).forEach((e) => {
+        if (!e || !e.id) return;
+        const prev = _snap && _snap[col] ? _snap[col].get(e.id) : undefined;
+        const before = JSON.stringify(e);
+        if (prev === undefined) {
+          if (!e.createdAt) e.createdAt = nowIso;
+          if (!e.updatedAt) e.updatedAt = nowIso;
+        } else if (prev !== before) {
+          e.updatedAt = nowIso;   // 內容真的變了才更新時間戳
+        }
+        m.set(e.id, JSON.stringify(e));
+      });
+      if (_snap && _snap[col]) {
+        _snap[col].forEach((_j, id) => {
+          if (!m.has(id) && !tombstones[id]) tombstones[id] = nowMs;
+        });
+      }
+      next[col] = m;
+    });
+    // 墓碑數量上限（避免無限成長）
+    const ids = Object.keys(tombstones);
+    if (ids.length > MAX_TOMBSTONES) {
+      ids.sort((a, b) => tombstones[a] - tombstones[b]);
+      ids.slice(0, ids.length - MAX_TOMBSTONES).forEach((id) => delete tombstones[id]);
+    }
+    _snap = next;
+  };
+
+  const _clone = (o) => JSON.parse(JSON.stringify(o));
+
+  const _ts = (e) => {
+    const t = e && (e.updatedAt || e.createdAt);
+    const n = t ? Date.parse(t) : 0;
+    return isNaN(n) ? 0 : n;
+  };
+
+  /**
+   * 合併兩份資料（跨裝置同步核心）
+   * 規則：
+   *  1. 每個實體以 id 為單位，取 updatedAt 較新者（相同則取 B＝雲端版）
+   *  2. 墓碑（刪除記錄）時間 >= 實體更新時間 → 視為已刪除，不復活
+   *  3. meta.team 取聯集後排除 removedMembers；removedMembers 亦取聯集
+   * 不修改傳入的物件。
+   */
+  const merge = (a, b) => {
+    const A = normalize(_clone(a || defaultData()));
+    const B = normalize(_clone(b || defaultData()));
+
+    const tomb = { ...(A.meta.tombstones || {}) };
+    Object.keys(B.meta.tombstones || {}).forEach((id) => {
+      tomb[id] = Math.max(tomb[id] || 0, B.meta.tombstones[id]);
+    });
+
+    const out = defaultData();
+    COLLECTIONS.forEach((col) => {
+      const map = new Map();
+      (A[col] || []).forEach((e) => { if (e && e.id) map.set(e.id, e); });
+      (B[col] || []).forEach((e) => {
+        if (!e || !e.id) return;
+        const cur = map.get(e.id);
+        if (!cur || _ts(e) >= _ts(cur)) map.set(e.id, e);
+      });
+      out[col] = [...map.values()].filter((e) => {
+        const t = tomb[e.id];
+        return !(t && t >= _ts(e));   // 刪除時間不早於最後更新 → 保持刪除
+      });
+    });
+
+    const removed = [...new Set([...(A.meta.removedMembers || []), ...(B.meta.removedMembers || [])])];
+    const teamMap = new Map();
+    [...(A.meta.team || []), ...(B.meta.team || [])].forEach((m) => {
+      if (m && m.name) teamMap.set(m.name, m);
+    });
+    // 團隊成員：以姓名排序 + 確定性 id → 保證 merge 具交換律與冪等性（雲端同步收斂關鍵）
+    out.meta.team = [...teamMap.values()]
+      .filter((m) => !removed.includes(m.name))
+      .map((m) => ({ id: 'mb_' + m.name, name: m.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    out.meta.removedMembers = [...removed].sort();
+    out.meta.tombstones = tomb;
+    out.meta.seeded = !!(A.meta.seeded || B.meta.seeded);
+    const created = [A.meta.createdAt, B.meta.createdAt].filter(Boolean).sort();
+    out.meta.createdAt = created[0] || new Date().toISOString();
+    // updatedAt 取較大者（不可用「現在時間」→ 否則每次合併結果都不同，會造成雲端無限回推）
+    const ua = Date.parse(A.meta.updatedAt) || 0;
+    const ub = Date.parse(B.meta.updatedAt) || 0;
+    const umax = Math.max(ua, ub);
+    if (umax) out.meta.updatedAt = new Date(umax).toISOString();
+    out.meta.owner = A.meta.owner || B.meta.owner || '鈦沅CRM';
+    return normalize(out);
+  };
+
+  /**
+   * 套用雲端合併結果到本機（不重新蓋時間戳，避免與雲端來回互相覆蓋）
+   */
+  const applyRemote = (data) => {
+    const norm = normalize(_clone(data));
+    _rebuildSnap(norm);
+    try {
+      localStorage.setItem(KEY, JSON.stringify(norm));
+      window.dispatchEvent(new CustomEvent('crm:dataChanged', { detail: norm }));
+    } catch (e) {
+      console.error('Store applyRemote error:', e);
+    }
     return norm;
   };
 
@@ -290,6 +432,9 @@ const Store = (() => {
     replace,
     uid,
     normalize,
+    merge,
+    applyRemote,
+    COLLECTIONS,
     PIPELINE_STAGES,
     STAGE_MAP,
     calcHeat,

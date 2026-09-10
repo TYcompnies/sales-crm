@@ -59,15 +59,39 @@
       <button class="modal-close" data-close>&times;</button>
     </div>
     <div class="modal-body">
-      <p class="sync-help">在不同裝置、不同網域、不同 IP 之間同步資料。<b>不需 API key、不用手動輸入代碼。</b></p>
+      <p class="sync-help">不同網域、不同瀏覽器、不同 IP、不同裝置 → <b>全自動同步連動</b>。<b>不需 API key、不用手動輸入同步碼。</b></p>
 
       <div class="sync-tabs">
-        <button class="sync-tab active" data-sync-tab="clipboard">📋 剪貼簿一鍵同步</button>
+        <button class="sync-tab active" data-sync-tab="cloud">☁️ 雲端自動同步</button>
+        <button class="sync-tab" data-sync-tab="clipboard">📋 剪貼簿一鍵同步</button>
         <button class="sync-tab" data-sync-tab="file">📁 JSON 檔案備份</button>
         <button class="sync-tab" data-sync-tab="link">🔗 連結分享</button>
       </div>
 
-      <div class="sync-panel active" data-sync-panel="clipboard">
+      <div class="sync-panel active" data-sync-panel="cloud">
+        <h3>☁️ 雲端自動同步（免設定）</h3>
+        <div class="cloud-card">
+          <span class="cloud-dot busy" id="cloudDot"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="cloud-title">同步狀態</div>
+            <div class="cloud-state busy" id="cloudStateBox">正在啟動…</div>
+          </div>
+        </div>
+        <ul class="cloud-list">
+          <li>✅ <b>開啟即同步</b> — 換網域、換瀏覽器、換手機、換電腦，打開網頁自動連上，不必輸入任何代碼。</li>
+          <li>✅ <b>即時推送</b> — 同事改了客戶或商機，你的畫面會自己更新（不需要重整）。</li>
+          <li>✅ <b>雙向合併</b> — 兩台裝置同時改資料不會互相覆蓋；刪除的資料也不會被別台「復活」。</li>
+          <li>✅ <b>離線可用</b> — 斷網時照常操作，資料存在本機，恢復連線後自動補同步。</li>
+          <li>🔒 資料以 gzip 壓縮 + AES-GCM 加密後傳輸，不以明文暴露。</li>
+        </ul>
+        <div class="sync-actions">
+          <button class="btn-primary" id="btnCloudPull">⬇️ 立即拉取雲端最新</button>
+          <button class="btn-secondary" id="btnCloudReconnect">🔄 重新連線</button>
+        </div>
+        <p class="sync-note">同步空間：<code id="cloudWsId">—</code>（本團隊專屬頻道，已內嵌，無需手動輸入）</p>
+      </div>
+
+      <div class="sync-panel" data-sync-panel="clipboard">
         <h3>📋 剪貼簿一鍵同步</h3>
         <p class="muted">把目前所有資料壓縮成同步碼，按一個鈕複製到剪貼簿；到另一台裝置貼上即可同步。</p>
         <div class="sync-row">
@@ -175,6 +199,8 @@
 <!-- ============= 腳本 ============= -->
 <script src="assets/js/store.js"></script>
 <script src="assets/js/sync.js"></script>
+<script src="assets/js/mqtt-lite.js"></script>
+<script src="assets/js/cloud.js"></script>
 <script src="assets/js/seed.js"></script>
 <script src="assets/js/pipeline.js"></script>
 <script src="assets/js/dashboard.js"></script>
