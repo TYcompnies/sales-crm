@@ -42,7 +42,11 @@ const App = (() => {
     Sync.updateIndicator();
     Cloud.init();
     const wsIdEl = document.getElementById('cloudWsId');
-    if (wsIdEl) wsIdEl.textContent = Cloud.WORKSPACE;
+    if (wsIdEl) {
+      // 顯示友善的團隊頻道代碼（完整 ID 放在 tooltip，方便排查）
+      wsIdEl.textContent = '鈦沅CRM · ' + String(Cloud.WORKSPACE).slice(0, 8).toUpperCase();
+      wsIdEl.title = Cloud.TOPIC;
+    }
 
     // 5. 更新右上角身份顯示
     renderProfileUI();
